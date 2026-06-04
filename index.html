@@ -4,8 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Quiniela Mundial 2026 · Richie Tortas</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Paytone+One&family=Poppins:wght@400;500;600;700;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Paytone+One&family=Poppins:wght@400;600;700;900&display=swap" rel="stylesheet"/>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -13,13 +12,28 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font-family:'Poppins',sans-serif;background:#1a0b06}
 #root{min-height:100vh}
-:root{--orange:#ff5b21;--dark:#26120c;--ol:#ff7a45;--d2:#3d1e0f;--d3:#1a0b06;--muted:#a07060;--border:#3d1e0f;--card:#1a0b06;--green:#1db954;--blue:#3b82f6}
+:root{--or:#ff5b21;--dk:#26120c;--d2:#3d1e0f;--d3:#1a0b06;--mu:#a07060;--bd:#3d1e0f;--cd:#1a0b06;--gn:#1db954;--rd:#e63b1f}
 </style>
 </head>
 <body><div id="root"></div>
 <script type="text/babel">
 const{useState,useEffect,useRef,useCallback}=React;
-const STORAGE_KEY="rt-mundial-2026-v4";
+const LS_FB="richie-fb-url";
+
+// ─── FIREBASE REST (sin SDK) ─────────────────────────────────────
+function getDB(){return localStorage.getItem(LS_FB)||"";}
+async function fbRead(path){
+  try{const r=await fetch(`${getDB()}/${path}.json`);const d=await r.json();return d||{};}catch(_){return{};}
+}
+async function fbWrite(path,data){
+  try{await fetch(`${getDB()}/${path}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});}catch(_){}
+}
+async function fbPatch(path,data){
+  try{await fetch(`${getDB()}/${path}.json`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});}catch(_){}
+}
+async function fbDelete(path){
+  try{await fetch(`${getDB()}/${path}.json`,{method:"DELETE"});}catch(_){}
+}
 
 // ─── GRUPOS REALES MUNDIAL 2026 ──────────────────────────────────
 const GROUPS={
@@ -27,7 +41,7 @@ const GROUPS={
   B:["🇨🇦 Canadá","🇧🇦 Bosnia y Herz.","🇶🇦 Qatar","🇨🇭 Suiza"],
   C:["🇧🇷 Brasil","🇲🇦 Marruecos","🇭🇹 Haití","🏴󠁧󠁢󠁳󠁣󠁴󠁿 Escocia"],
   D:["🇺🇸 Estados Unidos","🇵🇾 Paraguay","🇦🇺 Australia","🇹🇷 Turquía"],
-  E:["🇩🇪 Alemania","🇨🇼 Curazao","🇨🇮 C. de Marfil","🇪🇨 Ecuador"],
+  E:["🇩🇪 Alemania","🇨🇼 Curazao","🇨🇮 Costa de Marfil","🇪🇨 Ecuador"],
   F:["🇳🇱 Países Bajos","🇯🇵 Japón","🇸🇪 Suecia","🇹🇳 Túnez"],
   G:["🇧🇪 Bélgica","🇪🇬 Egipto","🇮🇷 Irán","🇳🇿 Nueva Zelanda"],
   H:["🇪🇸 España","🇨🇻 Cabo Verde","🇸🇦 Arabia Saudita","🇺🇾 Uruguay"],
@@ -37,142 +51,179 @@ const GROUPS={
   L:["🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra","🇭🇷 Croacia","🇬🇭 Ghana","🇵🇦 Panamá"],
 };
 
-// ─── TABLA DE POSICIONES ─────────────────────────────────────────
-function calcStandings(g,allMatches,results){
+// ─── HORARIO REAL VET (=ET) TODOS LOS 72 PARTIDOS ────────────────
+// VET = UTC-4 = EDT (hora del este verano). Todos los tiempos son iguales.
+// Formato: [año,mes-1,dia,hora,min]
+const GM=[
+// ── JORNADA 1 ──
+{id:"AR1M1",g:"A",r:1,h:"🇲🇽 México",a:"🇿🇦 Sudáfrica",k:new Date(2026,5,11,15,0).toISOString()},
+{id:"AR1M2",g:"A",r:1,h:"🇰🇷 Corea del Sur",a:"🇨🇿 Czechia",k:new Date(2026,5,11,22,0).toISOString()},
+{id:"BR1M1",g:"B",r:1,h:"🇨🇦 Canadá",a:"🇧🇦 Bosnia y Herz.",k:new Date(2026,5,12,15,0).toISOString()},
+{id:"DR1M1",g:"D",r:1,h:"🇺🇸 Estados Unidos",a:"🇵🇾 Paraguay",k:new Date(2026,5,12,21,0).toISOString()},
+{id:"BR1M2",g:"B",r:1,h:"🇶🇦 Qatar",a:"🇨🇭 Suiza",k:new Date(2026,5,13,15,0).toISOString()},
+{id:"CR1M1",g:"C",r:1,h:"🇧🇷 Brasil",a:"🇲🇦 Marruecos",k:new Date(2026,5,13,18,0).toISOString()},
+{id:"CR1M2",g:"C",r:1,h:"🇭🇹 Haití",a:"🏴󠁧󠁢󠁳󠁣󠁴󠁿 Escocia",k:new Date(2026,5,13,21,0).toISOString()},
+{id:"DR1M2",g:"D",r:1,h:"🇦🇺 Australia",a:"🇹🇷 Turquía",k:new Date(2026,5,14,0,0).toISOString()},
+{id:"ER1M1",g:"E",r:1,h:"🇩🇪 Alemania",a:"🇨🇼 Curazao",k:new Date(2026,5,14,13,0).toISOString()},
+{id:"FR1M1",g:"F",r:1,h:"🇳🇱 Países Bajos",a:"🇯🇵 Japón",k:new Date(2026,5,14,16,0).toISOString()},
+{id:"ER1M2",g:"E",r:1,h:"🇨🇮 Costa de Marfil",a:"🇪🇨 Ecuador",k:new Date(2026,5,14,19,0).toISOString()},
+{id:"FR1M2",g:"F",r:1,h:"🇸🇪 Suecia",a:"🇹🇳 Túnez",k:new Date(2026,5,14,22,0).toISOString()},
+{id:"HR1M1",g:"H",r:1,h:"🇪🇸 España",a:"🇨🇻 Cabo Verde",k:new Date(2026,5,15,12,0).toISOString()},
+{id:"GR1M1",g:"G",r:1,h:"🇧🇪 Bélgica",a:"🇪🇬 Egipto",k:new Date(2026,5,15,15,0).toISOString()},
+{id:"HR1M2",g:"H",r:1,h:"🇸🇦 Arabia Saudita",a:"🇺🇾 Uruguay",k:new Date(2026,5,15,18,0).toISOString()},
+{id:"GR1M2",g:"G",r:1,h:"🇮🇷 Irán",a:"🇳🇿 Nueva Zelanda",k:new Date(2026,5,15,21,0).toISOString()},
+{id:"IR1M1",g:"I",r:1,h:"🇫🇷 Francia",a:"🇸🇳 Senegal",k:new Date(2026,5,16,15,0).toISOString()},
+{id:"IR1M2",g:"I",r:1,h:"🇮🇶 Irak",a:"🇳🇴 Noruega",k:new Date(2026,5,16,18,0).toISOString()},
+{id:"JR1M1",g:"J",r:1,h:"🇦🇷 Argentina",a:"🇩🇿 Argelia",k:new Date(2026,5,16,21,0).toISOString()},
+{id:"JR1M2",g:"J",r:1,h:"🇦🇹 Austria",a:"🇯🇴 Jordania",k:new Date(2026,5,17,0,0).toISOString()},
+{id:"KR1M1",g:"K",r:1,h:"🇵🇹 Portugal",a:"🇨🇩 R.D. Congo",k:new Date(2026,5,17,13,0).toISOString()},
+{id:"LR1M1",g:"L",r:1,h:"🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra",a:"🇭🇷 Croacia",k:new Date(2026,5,17,16,0).toISOString()},
+{id:"LR1M2",g:"L",r:1,h:"🇬🇭 Ghana",a:"🇵🇦 Panamá",k:new Date(2026,5,17,19,0).toISOString()},
+{id:"KR1M2",g:"K",r:1,h:"🇺🇿 Uzbekistán",a:"🇨🇴 Colombia",k:new Date(2026,5,17,22,0).toISOString()},
+// ── JORNADA 2 ──
+{id:"AR2M1",g:"A",r:2,h:"🇨🇿 Czechia",a:"🇿🇦 Sudáfrica",k:new Date(2026,5,18,12,0).toISOString()},
+{id:"BR2M1",g:"B",r:2,h:"🇨🇭 Suiza",a:"🇧🇦 Bosnia y Herz.",k:new Date(2026,5,18,15,0).toISOString()},
+{id:"BR2M2",g:"B",r:2,h:"🇨🇦 Canadá",a:"🇶🇦 Qatar",k:new Date(2026,5,18,18,0).toISOString()},
+{id:"AR2M2",g:"A",r:2,h:"🇲🇽 México",a:"🇰🇷 Corea del Sur",k:new Date(2026,5,18,21,0).toISOString()},
+{id:"DR2M1",g:"D",r:2,h:"🇺🇸 Estados Unidos",a:"🇦🇺 Australia",k:new Date(2026,5,19,15,0).toISOString()},
+{id:"CR2M1",g:"C",r:2,h:"🏴󠁧󠁢󠁳󠁣󠁴󠁿 Escocia",a:"🇲🇦 Marruecos",k:new Date(2026,5,19,18,0).toISOString()},
+{id:"CR2M2",g:"C",r:2,h:"🇧🇷 Brasil",a:"🇭🇹 Haití",k:new Date(2026,5,19,20,30).toISOString()},
+{id:"DR2M2",g:"D",r:2,h:"🇹🇷 Turquía",a:"🇵🇾 Paraguay",k:new Date(2026,5,19,23,0).toISOString()},
+{id:"FR2M1",g:"F",r:2,h:"🇳🇱 Países Bajos",a:"🇸🇪 Suecia",k:new Date(2026,5,20,13,0).toISOString()},
+{id:"ER2M1",g:"E",r:2,h:"🇩🇪 Alemania",a:"🇨🇮 Costa de Marfil",k:new Date(2026,5,20,16,0).toISOString()},
+{id:"ER2M2",g:"E",r:2,h:"🇪🇨 Ecuador",a:"🇨🇼 Curazao",k:new Date(2026,5,20,20,0).toISOString()},
+{id:"FR2M2",g:"F",r:2,h:"🇯🇵 Japón",a:"🇹🇳 Túnez",k:new Date(2026,5,20,22,0).toISOString()},
+{id:"HR2M1",g:"H",r:2,h:"🇪🇸 España",a:"🇸🇦 Arabia Saudita",k:new Date(2026,5,21,12,0).toISOString()},
+{id:"GR2M1",g:"G",r:2,h:"🇧🇪 Bélgica",a:"🇮🇷 Irán",k:new Date(2026,5,21,15,0).toISOString()},
+{id:"HR2M2",g:"H",r:2,h:"🇨🇻 Cabo Verde",a:"🇺🇾 Uruguay",k:new Date(2026,5,21,18,0).toISOString()},
+{id:"GR2M2",g:"G",r:2,h:"🇪🇬 Egipto",a:"🇳🇿 Nueva Zelanda",k:new Date(2026,5,21,21,0).toISOString()},
+{id:"JR2M1",g:"J",r:2,h:"🇦🇷 Argentina",a:"🇦🇹 Austria",k:new Date(2026,5,22,13,0).toISOString()},
+{id:"IR2M1",g:"I",r:2,h:"🇫🇷 Francia",a:"🇮🇶 Irak",k:new Date(2026,5,22,16,0).toISOString()},
+{id:"IR2M2",g:"I",r:2,h:"🇸🇳 Senegal",a:"🇳🇴 Noruega",k:new Date(2026,5,22,19,0).toISOString()},
+{id:"JR2M2",g:"J",r:2,h:"🇩🇿 Argelia",a:"🇯🇴 Jordania",k:new Date(2026,5,22,22,0).toISOString()},
+{id:"KR2M1",g:"K",r:2,h:"🇵🇹 Portugal",a:"🇺🇿 Uzbekistán",k:new Date(2026,5,23,13,0).toISOString()},
+{id:"LR2M1",g:"L",r:2,h:"🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra",a:"🇬🇭 Ghana",k:new Date(2026,5,23,16,0).toISOString()},
+{id:"LR2M2",g:"L",r:2,h:"🇭🇷 Croacia",a:"🇵🇦 Panamá",k:new Date(2026,5,23,19,0).toISOString()},
+{id:"KR2M2",g:"K",r:2,h:"🇨🇩 R.D. Congo",a:"🇨🇴 Colombia",k:new Date(2026,5,23,22,0).toISOString()},
+// ── JORNADA 3 (simultáneos por grupo) ──
+{id:"AR3M1",g:"A",r:3,h:"🇲🇽 México",a:"🇨🇿 Czechia",k:new Date(2026,5,24,17,0).toISOString()},
+{id:"AR3M2",g:"A",r:3,h:"🇿🇦 Sudáfrica",a:"🇰🇷 Corea del Sur",k:new Date(2026,5,24,17,0).toISOString()},
+{id:"BR3M1",g:"B",r:3,h:"🇨🇦 Canadá",a:"🇨🇭 Suiza",k:new Date(2026,5,24,21,0).toISOString()},
+{id:"BR3M2",g:"B",r:3,h:"🇧🇦 Bosnia y Herz.",a:"🇶🇦 Qatar",k:new Date(2026,5,24,21,0).toISOString()},
+{id:"CR3M1",g:"C",r:3,h:"🇧🇷 Brasil",a:"🏴󠁧󠁢󠁳󠁣󠁴󠁿 Escocia",k:new Date(2026,5,25,17,0).toISOString()},
+{id:"CR3M2",g:"C",r:3,h:"🇲🇦 Marruecos",a:"🇭🇹 Haití",k:new Date(2026,5,25,17,0).toISOString()},
+{id:"DR3M1",g:"D",r:3,h:"🇺🇸 Estados Unidos",a:"🇹🇷 Turquía",k:new Date(2026,5,25,21,0).toISOString()},
+{id:"DR3M2",g:"D",r:3,h:"🇵🇾 Paraguay",a:"🇦🇺 Australia",k:new Date(2026,5,25,21,0).toISOString()},
+{id:"ER3M1",g:"E",r:3,h:"🇩🇪 Alemania",a:"🇪🇨 Ecuador",k:new Date(2026,5,26,17,0).toISOString()},
+{id:"ER3M2",g:"E",r:3,h:"🇨🇼 Curazao",a:"🇨🇮 Costa de Marfil",k:new Date(2026,5,26,17,0).toISOString()},
+{id:"FR3M1",g:"F",r:3,h:"🇳🇱 Países Bajos",a:"🇹🇳 Túnez",k:new Date(2026,5,26,21,0).toISOString()},
+{id:"FR3M2",g:"F",r:3,h:"🇯🇵 Japón",a:"🇸🇪 Suecia",k:new Date(2026,5,26,21,0).toISOString()},
+{id:"GR3M1",g:"G",r:3,h:"🇧🇪 Bélgica",a:"🇳🇿 Nueva Zelanda",k:new Date(2026,5,27,12,0).toISOString()},
+{id:"GR3M2",g:"G",r:3,h:"🇪🇬 Egipto",a:"🇮🇷 Irán",k:new Date(2026,5,27,12,0).toISOString()},
+{id:"HR3M1",g:"H",r:3,h:"🇪🇸 España",a:"🇺🇾 Uruguay",k:new Date(2026,5,27,12,0).toISOString()},
+{id:"HR3M2",g:"H",r:3,h:"🇨🇻 Cabo Verde",a:"🇸🇦 Arabia Saudita",k:new Date(2026,5,27,12,0).toISOString()},
+{id:"IR3M1",g:"I",r:3,h:"🇫🇷 Francia",a:"🇳🇴 Noruega",k:new Date(2026,5,27,17,0).toISOString()},
+{id:"IR3M2",g:"I",r:3,h:"🇸🇳 Senegal",a:"🇮🇶 Irak",k:new Date(2026,5,27,17,0).toISOString()},
+{id:"LR3M1",g:"L",r:3,h:"🇵🇦 Panamá",a:"🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra",k:new Date(2026,5,27,17,0).toISOString()},
+{id:"LR3M2",g:"L",r:3,h:"🇭🇷 Croacia",a:"🇬🇭 Ghana",k:new Date(2026,5,27,17,0).toISOString()},
+{id:"KR3M1",g:"K",r:3,h:"🇨🇴 Colombia",a:"🇵🇹 Portugal",k:new Date(2026,5,27,19,30).toISOString()},
+{id:"KR3M2",g:"K",r:3,h:"🇨🇩 R.D. Congo",a:"🇺🇿 Uzbekistán",k:new Date(2026,5,27,19,30).toISOString()},
+{id:"JR3M1",g:"J",r:3,h:"🇩🇿 Argelia",a:"🇦🇹 Austria",k:new Date(2026,5,27,22,0).toISOString()},
+{id:"JR3M2",g:"J",r:3,h:"🇯🇴 Jordania",a:"🇦🇷 Argentina",k:new Date(2026,5,27,22,0).toISOString()},
+].map(m=>({...m,stage:"group",label:`Grupo ${m.g} · Jornada ${m.r}`}));
+
+// ─── BRACKET ELIMINATORIAS (M83=2K vs 2L, M84=1H vs 2J — corregido) ──
+const R32=[
+  {id:"r32_73",label:"Dieciséisavos · M73",h:{t:"runner",g:"A"},a:{t:"runner",g:"B"},k:new Date(2026,5,28,15,0).toISOString()},
+  {id:"r32_76",label:"Dieciséisavos · M76",h:{t:"winner",g:"C"},a:{t:"runner",g:"F"},k:new Date(2026,5,29,13,0).toISOString()},
+  {id:"r32_74",label:"Dieciséisavos · M74",h:{t:"winner",g:"E"},a:{t:"best3",gs:["A","B","C","D","F"]},k:new Date(2026,5,29,16,30).toISOString()},
+  {id:"r32_75",label:"Dieciséisavos · M75",h:{t:"winner",g:"F"},a:{t:"runner",g:"C"},k:new Date(2026,5,29,21,0).toISOString()},
+  {id:"r32_78",label:"Dieciséisavos · M78",h:{t:"runner",g:"E"},a:{t:"runner",g:"I"},k:new Date(2026,5,30,13,0).toISOString()},
+  {id:"r32_77",label:"Dieciséisavos · M77",h:{t:"winner",g:"I"},a:{t:"best3",gs:["C","D","F","G","H"]},k:new Date(2026,5,30,17,0).toISOString()},
+  {id:"r32_79",label:"Dieciséisavos · M79",h:{t:"winner",g:"A"},a:{t:"best3",gs:["C","E","F","H","I"]},k:new Date(2026,5,30,21,0).toISOString()},
+  {id:"r32_80",label:"Dieciséisavos · M80",h:{t:"winner",g:"L"},a:{t:"best3",gs:["E","H","I","J","K"]},k:new Date(2026,6,1,12,0).toISOString()},
+  {id:"r32_82",label:"Dieciséisavos · M82",h:{t:"winner",g:"G"},a:{t:"best3",gs:["A","E","H","I","J"]},k:new Date(2026,6,1,16,0).toISOString()},
+  {id:"r32_81",label:"Dieciséisavos · M81",h:{t:"winner",g:"D"},a:{t:"best3",gs:["B","E","F","I","J"]},k:new Date(2026,6,1,20,0).toISOString()},
+  {id:"r32_84",label:"Dieciséisavos · M84",h:{t:"winner",g:"H"},a:{t:"runner",g:"J"},k:new Date(2026,6,2,15,0).toISOString()},
+  {id:"r32_86",label:"Dieciséisavos · M86",h:{t:"winner",g:"J"},a:{t:"runner",g:"H"},k:new Date(2026,6,2,18,0).toISOString()},
+  {id:"r32_85",label:"Dieciséisavos · M85",h:{t:"winner",g:"B"},a:{t:"best3",gs:["E","F","G","I","J"]},k:new Date(2026,6,2,22,0).toISOString()},
+  {id:"r32_83",label:"Dieciséisavos · M83",h:{t:"runner",g:"K"},a:{t:"runner",g:"L"},k:new Date(2026,6,3,13,0).toISOString()},
+  {id:"r32_87",label:"Dieciséisavos · M87",h:{t:"winner",g:"K"},a:{t:"best3",gs:["D","E","I","J","L"]},k:new Date(2026,6,3,21,30).toISOString()},
+  {id:"r32_88",label:"Dieciséisavos · M88",h:{t:"runner",g:"D"},a:{t:"runner",g:"G"},k:new Date(2026,6,3,19,0).toISOString()},
+];
+const R16=[
+  {id:"r16_89",label:"Octavos · M89",h:{t:"mw",mid:"r32_74"},a:{t:"mw",mid:"r32_77"},k:new Date(2026,6,4,22,0).toISOString()},
+  {id:"r16_90",label:"Octavos · M90",h:{t:"mw",mid:"r32_73"},a:{t:"mw",mid:"r32_75"},k:new Date(2026,6,4,13,0).toISOString()},
+  {id:"r16_91",label:"Octavos · M91",h:{t:"mw",mid:"r32_76"},a:{t:"mw",mid:"r32_78"},k:new Date(2026,6,5,16,0).toISOString()},
+  {id:"r16_92",label:"Octavos · M92",h:{t:"mw",mid:"r32_79"},a:{t:"mw",mid:"r32_80"},k:new Date(2026,6,5,20,0).toISOString()},
+  {id:"r16_93",label:"Octavos · M93",h:{t:"mw",mid:"r32_83"},a:{t:"mw",mid:"r32_84"},k:new Date(2026,6,6,15,0).toISOString()},
+  {id:"r16_94",label:"Octavos · M94",h:{t:"mw",mid:"r32_81"},a:{t:"mw",mid:"r32_82"},k:new Date(2026,6,6,19,0).toISOString()},
+  {id:"r16_95",label:"Octavos · M95",h:{t:"mw",mid:"r32_86"},a:{t:"mw",mid:"r32_85"},k:new Date(2026,6,7,12,0).toISOString()},
+  {id:"r16_96",label:"Octavos · M96",h:{t:"mw",mid:"r32_87"},a:{t:"mw",mid:"r32_88"},k:new Date(2026,6,7,16,0).toISOString()},
+];
+const QF=[
+  {id:"qf_97",label:"Cuartos · M97",h:{t:"mw",mid:"r16_89"},a:{t:"mw",mid:"r16_90"},k:new Date(2026,6,9,16,0).toISOString()},
+  {id:"qf_98",label:"Cuartos · M98",h:{t:"mw",mid:"r16_91"},a:{t:"mw",mid:"r16_92"},k:new Date(2026,6,10,15,0).toISOString()},
+  {id:"qf_99",label:"Cuartos · M99",h:{t:"mw",mid:"r16_93"},a:{t:"mw",mid:"r16_94"},k:new Date(2026,6,11,16,0).toISOString()},
+  {id:"qf_100",label:"Cuartos · M100",h:{t:"mw",mid:"r16_95"},a:{t:"mw",mid:"r16_96"},k:new Date(2026,6,12,15,0).toISOString()},
+];
+const SF=[
+  {id:"sf_101",label:"Semifinal · M101",h:{t:"mw",mid:"qf_97"},a:{t:"mw",mid:"qf_98"},k:new Date(2026,6,14,19,0).toISOString()},
+  {id:"sf_102",label:"Semifinal · M102",h:{t:"mw",mid:"qf_99"},a:{t:"mw",mid:"qf_100"},k:new Date(2026,6,15,19,0).toISOString()},
+];
+const THIRD={id:"tp_103",label:"3er Lugar",h:{t:"ml",mid:"sf_101"},a:{t:"ml",mid:"sf_102"},k:new Date(2026,6,19,11,0).toISOString()};
+const FINAL={id:"fn_104",label:"🏆 GRAN FINAL",h:{t:"mw",mid:"sf_101"},a:{t:"mw",mid:"sf_102"},k:new Date(2026,6,19,15,0).toISOString()};
+const KO=[...R32,...R16,...QF,...SF,THIRD,FINAL];
+const ALL=[...GM,...KO];
+
+// ─── CLASIFICACIÓN ───────────────────────────────────────────────
+function standings(g,results){
   const teams=GROUPS[g];
   const st=teams.map(t=>({team:t,pts:0,w:0,d:0,l:0,gf:0,ga:0,gd:0,played:0}));
-  allMatches.filter(m=>m.group===g&&results[m.id]).forEach(m=>{
+  GM.filter(m=>m.g===g&&results[m.id]&&results[m.id].home!==undefined).forEach(m=>{
     const res=results[m.id];
-    if(res.home===undefined||res.away===undefined)return;
-    const h=st.find(s=>s.team===m.home),a=st.find(s=>s.team===m.away);
-    if(!h||!a)return;
-    h.played++;a.played++;h.gf+=res.home;h.ga+=res.away;a.gf+=res.away;a.ga+=res.home;
-    h.gd=h.gf-h.ga;a.gd=a.gf-a.ga;
-    if(res.home>res.away){h.pts+=3;h.w++;a.l++;}
-    else if(res.home<res.away){a.pts+=3;a.w++;h.l++;}
-    else{h.pts+=1;h.d++;a.pts+=1;a.d++;}
+    const hS=st.find(s=>s.team===m.h),aS=st.find(s=>s.team===m.a);
+    if(!hS||!aS)return;
+    hS.played++;aS.played++;hS.gf+=res.home;hS.ga+=res.away;
+    aS.gf+=res.away;aS.ga+=res.home;hS.gd=hS.gf-hS.ga;aS.gd=aS.gf-aS.ga;
+    if(res.home>res.away){hS.pts+=3;hS.w++;aS.l++;}
+    else if(res.home<res.away){aS.pts+=3;aS.w++;hS.l++;}
+    else{hS.pts+=1;hS.d++;aS.pts+=1;aS.d++;}
   });
   return st.sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf);
 }
-function getBest3rd(groupMatches,results){
+function best3rd(results){
   return Object.keys(GROUPS).map(g=>{
-    const played=groupMatches.filter(m=>m.group===g&&results[m.id]).length;
+    const played=GM.filter(m=>m.g===g&&results[m.id]&&results[m.id].home!==undefined).length;
     if(played<6)return null;
-    return{group:g,...calcStandings(g,groupMatches,results)[2]};
+    return{group:g,...standings(g,results)[2]};
   }).filter(Boolean).sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf).slice(0,8);
 }
-
-// ─── GENERAR PARTIDOS FASE DE GRUPOS ─────────────────────────────
-function generateGroupMatches(){
-  const ms=[];
-  const glts=Object.keys(GROUPS);
-  const matchups=[[[0,1],[2,3]],[[0,2],[1,3]],[[0,3],[1,2]]];
-  const startDays=[11,17,23];
-  glts.forEach((g,gi)=>{
-    const teams=GROUPS[g];
-    const dayInBlock=Math.floor(gi/2),slot=gi%2;
-    matchups.forEach((pairs,ri)=>{
-      const baseDay=startDays[ri]+dayInBlock;
-      const hours=slot===0?[13,16]:[19,22];
-      pairs.forEach(([a,b],mi)=>{
-        const d=new Date(2026,5,baseDay,hours[mi],0,0);
-        ms.push({id:`${g}R${ri+1}M${mi+1}`,stage:"group",group:g,round:ri+1,
-          home:teams[a],away:teams[b],kickoff:d.toISOString(),
-          label:`Grupo ${g} · Jornada ${ri+1}`,fase:1});
-      });
-    });
-  });
-  return ms;
-}
-const GROUP_MATCHES=generateGroupMatches();
-
-// ─── BRACKET ELIMINATORIAS ───────────────────────────────────────
-// Dieciséisavos (Round of 32) — pairings oficiales FIFA
-const R32=[
-  {id:"r32_73",label:"Dieciséisavos · M73",home:{t:"runner",g:"A"},away:{t:"runner",g:"B"},kickoff:"2026-06-28T15:00:00-07:00",fase:2},
-  {id:"r32_74",label:"Dieciséisavos · M74",home:{t:"winner",g:"E"},away:{t:"best3",gs:["A","B","C","D","F"]},kickoff:"2026-06-29T13:00:00-04:00",fase:2},
-  {id:"r32_76",label:"Dieciséisavos · M76",home:{t:"winner",g:"C"},away:{t:"runner",g:"F"},kickoff:"2026-06-29T13:00:00-05:00",fase:2},
-  {id:"r32_75",label:"Dieciséisavos · M75",home:{t:"winner",g:"F"},away:{t:"runner",g:"C"},kickoff:"2026-06-29T21:00:00-06:00",fase:2},
-  {id:"r32_78",label:"Dieciséisavos · M78",home:{t:"runner",g:"E"},away:{t:"runner",g:"I"},kickoff:"2026-06-30T13:00:00-05:00",fase:2},
-  {id:"r32_77",label:"Dieciséisavos · M77",home:{t:"winner",g:"I"},away:{t:"best3",gs:["C","D","F","G","H"]},kickoff:"2026-06-30T17:00:00-04:00",fase:2},
-  {id:"r32_79",label:"Dieciséisavos · M79",home:{t:"winner",g:"A"},away:{t:"best3",gs:["C","E","F","H","I"]},kickoff:"2026-06-30T21:00:00-06:00",fase:2},
-  {id:"r32_80",label:"Dieciséisavos · M80",home:{t:"winner",g:"L"},away:{t:"best3",gs:["E","H","I","J","K"]},kickoff:"2026-07-01T12:00:00-04:00",fase:2},
-  {id:"r32_82",label:"Dieciséisavos · M82",home:{t:"winner",g:"G"},away:{t:"best3",gs:["A","E","H","I","J"]},kickoff:"2026-07-01T13:00:00-07:00",fase:2},
-  {id:"r32_81",label:"Dieciséisavos · M81",home:{t:"winner",g:"D"},away:{t:"best3",gs:["B","E","F","I","J"]},kickoff:"2026-07-01T20:00:00-07:00",fase:2},
-  {id:"r32_83",label:"Dieciséisavos · M83",home:{t:"winner",g:"H"},away:{t:"runner",g:"J"},kickoff:"2026-07-02T15:00:00-07:00",fase:2},
-  {id:"r32_86",label:"Dieciséisavos · M86",home:{t:"winner",g:"J"},away:{t:"runner",g:"H"},kickoff:"2026-07-02T18:00:00-04:00",fase:2},
-  {id:"r32_85",label:"Dieciséisavos · M85",home:{t:"winner",g:"B"},away:{t:"best3",gs:["E","F","G","I","J"]},kickoff:"2026-07-02T22:00:00-07:00",fase:2},
-  {id:"r32_87",label:"Dieciséisavos · M87",home:{t:"winner",g:"K"},away:{t:"best3",gs:["D","E","I","J","L"]},kickoff:"2026-07-03T02:00:00-05:00",fase:2},
-  {id:"r32_84",label:"Dieciséisavos · M84",home:{t:"runner",g:"K"},away:{t:"runner",g:"L"},kickoff:"2026-07-03T13:00:00-05:00",fase:2},
-  {id:"r32_88",label:"Dieciséisavos · M88",home:{t:"runner",g:"D"},away:{t:"runner",g:"G"},kickoff:"2026-07-03T19:00:00-05:00",fase:2},
-];
-// Octavos (Round of 16)
-const R16=[
-  {id:"r16_89",label:"Octavos · M89",home:{t:"mw",mid:"r32_74"},away:{t:"mw",mid:"r32_77"},kickoff:"2026-07-04T22:00:00-04:00",fase:2},
-  {id:"r16_90",label:"Octavos · M90",home:{t:"mw",mid:"r32_73"},away:{t:"mw",mid:"r32_75"},kickoff:"2026-07-04T13:00:00-05:00",fase:2},
-  {id:"r16_91",label:"Octavos · M91",home:{t:"mw",mid:"r32_76"},away:{t:"mw",mid:"r32_78"},kickoff:"2026-07-05T16:00:00-04:00",fase:2},
-  {id:"r16_92",label:"Octavos · M92",home:{t:"mw",mid:"r32_79"},away:{t:"mw",mid:"r32_80"},kickoff:"2026-07-05T20:00:00-06:00",fase:2},
-  {id:"r16_93",label:"Octavos · M93",home:{t:"mw",mid:"r32_83"},away:{t:"mw",mid:"r32_84"},kickoff:"2026-07-06T15:00:00-05:00",fase:2},
-  {id:"r16_94",label:"Octavos · M94",home:{t:"mw",mid:"r32_81"},away:{t:"mw",mid:"r32_82"},kickoff:"2026-07-06T17:00:00-07:00",fase:2},
-  {id:"r16_95",label:"Octavos · M95",home:{t:"mw",mid:"r32_86"},away:{t:"mw",mid:"r32_85"},kickoff:"2026-07-07T12:00:00-04:00",fase:2},
-  {id:"r16_96",label:"Octavos · M96",home:{t:"mw",mid:"r32_87"},away:{t:"mw",mid:"r32_88"},kickoff:"2026-07-07T13:00:00-07:00",fase:2},
-];
-// Cuartos
-const QF=[
-  {id:"qf_97",label:"Cuartos · M97",home:{t:"mw",mid:"r16_89"},away:{t:"mw",mid:"r16_90"},kickoff:"2026-07-09T16:00:00-04:00",fase:2},
-  {id:"qf_98",label:"Cuartos · M98",home:{t:"mw",mid:"r16_91"},away:{t:"mw",mid:"r16_92"},kickoff:"2026-07-10T15:00:00-07:00",fase:2},
-  {id:"qf_99",label:"Cuartos · M99",home:{t:"mw",mid:"r16_93"},away:{t:"mw",mid:"r16_94"},kickoff:"2026-07-11T16:00:00-04:00",fase:2},
-  {id:"qf_100",label:"Cuartos · M100",home:{t:"mw",mid:"r16_95"},away:{t:"mw",mid:"r16_96"},kickoff:"2026-07-12T15:00:00-07:00",fase:2},
-];
-// Semis
-const SF=[
-  {id:"sf_101",label:"Semifinal · M101",home:{t:"mw",mid:"qf_97"},away:{t:"mw",mid:"qf_98"},kickoff:"2026-07-14T19:00:00-04:00",fase:2},
-  {id:"sf_102",label:"Semifinal · M102",home:{t:"mw",mid:"qf_99"},away:{t:"mw",mid:"qf_100"},kickoff:"2026-07-15T19:00:00-04:00",fase:2},
-];
-const TPLACE={id:"tp_103",label:"3er Lugar",home:{t:"ml",mid:"sf_101"},away:{t:"ml",mid:"sf_102"},kickoff:"2026-07-19T11:00:00-04:00",fase:2};
-const FINAL={id:"final_104",label:"🏆 GRAN FINAL",home:{t:"mw",mid:"sf_101"},away:{t:"mw",mid:"sf_102"},kickoff:"2026-07-19T15:00:00-04:00",fase:2};
-
-const KO_MATCHES=[...R32,...R16,...QF,...SF,TPLACE,FINAL];
-const ALL_MATCHES=[...GROUP_MATCHES,...KO_MATCHES];
-
-// ─── RESOLVER EQUIPO ─────────────────────────────────────────────
-function resolveTeam(slot,results,koMatches){
-  if(!slot)return"⏳";
-  if(typeof slot==="string")return slot;
+function resolveTeam(slot,results){
+  if(!slot||typeof slot==="string")return slot||"⏳";
   const{t,g,gs,mid}=slot;
-  if(t==="winner"&&g){
-    const played=GROUP_MATCHES.filter(m=>m.group===g&&results[m.id]).length;
-    if(played<6)return`1º Grupo ${g}`;
-    return calcStandings(g,GROUP_MATCHES,results)[0]?.team||`1º Grupo ${g}`;
-  }
-  if(t==="runner"&&g){
-    const played=GROUP_MATCHES.filter(m=>m.group===g&&results[m.id]).length;
-    if(played<6)return`2º Grupo ${g}`;
-    return calcStandings(g,GROUP_MATCHES,results)[1]?.team||`2º Grupo ${g}`;
-  }
+  if(t==="winner"&&g){const pl=GM.filter(m=>m.g===g&&results[m.id]).length;return pl<6?`1º Grupo ${g}`:standings(g,results)[0]?.team||`1º ${g}`;}
+  if(t==="runner"&&g){const pl=GM.filter(m=>m.g===g&&results[m.id]).length;return pl<6?`2º Grupo ${g}`:standings(g,results)[1]?.team||`2º ${g}`;}
   if(t==="best3"&&gs){
-    const allDone=gs.every(grp=>GROUP_MATCHES.filter(m=>m.group===grp&&results[m.id]).length>=6);
+    const allDone=gs.every(grp=>GM.filter(m=>m.g===grp&&results[m.id]).length>=6);
     if(!allDone)return`Mejor 3º (${gs.join("/")})`;
-    const best8=getBest3rd(GROUP_MATCHES,results);
-    const candidate=best8.find(x=>gs.includes(x.group));
+    const b8=best3rd(results);
+    const used=new Set();
+    // assign greedily by rank
+    let candidate=b8.find(x=>gs.includes(x.group)&&!used.has(x.group));
     return candidate?candidate.team:`Mejor 3º (${gs.join("/")})`;
   }
   if((t==="mw"||t==="ml")&&mid){
-    const match=koMatches.find(m=>m.id===mid);
+    const match=KO.find(m=>m.id===mid);
     if(!match)return"⏳";
     const res=results[mid];
-    const hT=resolveTeam(match.home,results,koMatches);
-    const aT=resolveTeam(match.away,results,koMatches);
-    if(!res||res.home===undefined||res.away===undefined)
-      return`⏳ ${match.label.split("·")[1]?.trim()||"?"}`;
-    const hWin=res.home>res.away||(res.home===res.away&&res.pw==="home");
-    if(t==="mw")return hWin?hT:aT;
-    if(t==="ml")return hWin?aT:hT;
+    const hT=resolveTeam(match.h,results),aT=resolveTeam(match.a,results);
+    if(!res||res.home===undefined||res.away===undefined)return`⏳ ${match.label.split("·")[1]?.trim()||"?"}`;
+    const hW=res.home>res.away||(res.home===res.away&&res.pw==="home");
+    return t==="mw"?(hW?hT:aT):(hW?aT:hT);
   }
   return"⏳";
 }
-
-// ─── SCORING ─────────────────────────────────────────────────────
 function calcPts(pred,res){
   if(!pred||!res||res.home===undefined||res.away===undefined)return 0;
   const ph=parseInt(pred.home),pa=parseInt(pred.away);
@@ -181,39 +232,17 @@ function calcPts(pred,res){
   const po=ph>pa?"H":ph<pa?"A":"D",ro=res.home>res.away?"H":res.home<res.away?"A":"D";
   return po===ro?2:0;
 }
+const fmtD=iso=>{try{const d=new Date(iso);return d.toLocaleDateString("es-VE",{weekday:"short",day:"numeric",month:"short"})+" · "+d.toLocaleTimeString("es-VE",{hour:"2-digit",minute:"2-digit"})+" VET";}catch(_){return iso;}};
+const locked=k=>{try{return new Date()>=new Date(k);}catch(_){return false;}};
 
-function calcRanking(participants,predictions,results){
-  return participants.filter(p=>p.status==="approved").map(p=>{
-    let f1pts=0,f2pts=0,exact=0,outcome=0;
-    const preds=predictions[p.id]||{};
-    GROUP_MATCHES.forEach(m=>{const r=results[m.id],pr=preds[m.id];if(r&&pr){const pp=calcPts(pr,r);f1pts+=pp;if(pp===5)exact++;else if(pp===2)outcome++;}});
-    KO_MATCHES.forEach(m=>{const r=results[m.id],pr=preds[m.id];if(r&&pr){const pp=calcPts(pr,r);f2pts+=pp;if(pp===5)exact++;else if(pp===2)outcome++;}});
-    return{...p,f1pts,f2pts,pts:f1pts+f2pts,exact,outcome};
-  }).sort((a,b)=>b.pts-a.pts);
-}
-
-// ─── STORAGE ─────────────────────────────────────────────────────
-function loadData(){
-  try{const r=localStorage.getItem(STORAGE_KEY);if(r)return JSON.parse(r);}catch(_){}
-  return{participants:[],results:{},predictions:{},fase2abierta:false};
-}
-function saveData(d){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d));}catch(_){}}
-
-const fmtDate=iso=>{
-  try{const d=new Date(iso);return d.toLocaleDateString("es-MX",{weekday:"short",day:"numeric",month:"short"})+" · "+d.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});}catch(_){return iso;}
-};
-const isLocked=kickoff=>{try{return new Date()>=new Date(kickoff);}catch(_){return false;}};
-const REG_CLOSE=new Date("2026-06-11T19:59:00-06:00");
-const isRegOpen=()=>new Date()<=REG_CLOSE;
-
-function compressImage(file){
-  return new Promise(res=>{
+function compressImg(file){
+  return new Promise(r=>{
     const img=new Image(),url=URL.createObjectURL(file);
     img.onload=()=>{
       const c=document.createElement("canvas");
-      const s=Math.min(1,700/img.width);c.width=img.width*s;c.height=img.height*s;
+      const s=Math.min(1,500/img.width);c.width=img.width*s;c.height=img.height*s;
       c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-      res(c.toDataURL("image/jpeg",.72));URL.revokeObjectURL(url);
+      r(c.toDataURL("image/jpeg",.65));URL.revokeObjectURL(url);
     };img.src=url;
   });
 }
@@ -221,177 +250,205 @@ function compressImage(file){
 // ─── CSS ─────────────────────────────────────────────────────────
 const CSS=`
 .app{min-height:100vh;background:var(--d3);color:#fff;background-image:radial-gradient(ellipse at 50% -5%,#ff5b2110,transparent 60%)}
-.nav{background:var(--dark);border-bottom:3px solid var(--orange);position:sticky;top:0;z-index:100;box-shadow:0 4px 24px #00000088}
-.nav-in{max-width:960px;margin:0 auto;padding:0 14px;display:flex;align-items:stretch;justify-content:space-between;gap:4px}
+.nav{background:var(--dk);border-bottom:3px solid var(--or);position:sticky;top:0;z-index:100;box-shadow:0 4px 20px #00000088}
+.nv{max-width:960px;margin:0 auto;padding:0 14px;display:flex;align-items:stretch;justify-content:space-between}
 .logo{display:flex;align-items:center;padding:10px 0}
-.logo-t{font-family:'Paytone One',sans-serif;font-size:1.2rem;color:var(--orange);line-height:1}
-.logo-s{font-size:.5rem;color:#ffffff55;font-weight:600;letter-spacing:3px;text-transform:uppercase}
+.logo-t{font-family:'Paytone One',sans-serif;font-size:1.1rem;color:var(--or);line-height:1}
+.logo-s{font-size:.5rem;color:#ffffff55;font-weight:600;letter-spacing:2px;text-transform:uppercase}
 .tabs{display:flex;overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
-.tab{font-family:'Poppins',sans-serif;font-weight:700;font-size:.68rem;letter-spacing:1px;
-  text-transform:uppercase;padding:0 10px;border:none;cursor:pointer;background:transparent;
-  color:#ffffff55;white-space:nowrap;transition:all .15s;border-bottom:3px solid transparent;
-  margin-bottom:-3px;display:flex;align-items:center}
+.tab{font-size:.65rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:0 9px;border:none;cursor:pointer;background:transparent;color:#ffffff55;white-space:nowrap;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-3px;display:flex;align-items:center}
 .tab:hover{color:#fff}
-.tab.active{color:var(--orange);border-bottom-color:var(--orange)}
-.main{max-width:960px;margin:0 auto;padding:22px 14px 80px}
-.hero{background:linear-gradient(135deg,var(--dark),var(--d2));border:1px solid var(--border);
-  border-radius:16px;padding:28px 22px;margin-bottom:22px;position:relative;overflow:hidden}
+.tab.active{color:var(--or);border-bottom-color:var(--or)}
+.main{max-width:960px;margin:0 auto;padding:20px 14px 80px}
+.hero{background:linear-gradient(135deg,var(--dk),var(--d2));border:1px solid var(--bd);border-radius:14px;padding:26px 20px;margin-bottom:20px;position:relative;overflow:hidden}
 .hero::after{content:'⚽';position:absolute;right:-16px;bottom:-16px;font-size:7rem;opacity:.04;pointer-events:none}
-.hero-ey{font-size:.65rem;font-weight:700;letter-spacing:4px;text-transform:uppercase;color:var(--orange);margin-bottom:7px}
-.hero-t{font-family:'Paytone One',sans-serif;font-size:2.1rem;line-height:1.05;margin-bottom:6px}
-.hero-t span{color:var(--orange)}
-.hero-s{color:var(--muted);font-size:.84rem;margin-bottom:16px;line-height:1.6}
-.hero-pill{background:#ff5b2118;border:1px solid #ff5b2140;border-radius:50px;
-  display:inline-block;padding:6px 14px;font-size:.72rem;font-weight:600;color:var(--orange)}
-
-/* FASE 2 BANNER */
-.fase2-banner{background:linear-gradient(135deg,#1db95420,#1db95408);border:1px solid #1db95450;
-  border-radius:12px;padding:16px 18px;margin-bottom:20px;display:flex;align-items:center;gap:14px}
-.fase2-icon{font-size:2rem}
-.fase2-title{font-family:'Paytone One',sans-serif;font-size:1rem;color:var(--green);margin-bottom:3px}
-.fase2-sub{font-size:.75rem;color:#ffffff80;line-height:1.5}
-
-.ms{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:20px}
-.ms-c{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
-.ms-n{font-family:'Paytone One',sans-serif;font-size:1.7rem;color:var(--orange);line-height:1}
-.ms-l{font-size:.6rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-top:3px}
-.sh{font-family:'Paytone One',sans-serif;font-size:1.1rem;color:#fff;margin-bottom:14px;
-  display:flex;align-items:center;gap:8px}
-.sh::after{content:'';flex:1;height:1px;background:linear-gradient(to right,var(--border),transparent)}
-.card{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:18px;margin-bottom:13px}
-.ct{font-family:'Paytone One',sans-serif;font-size:.9rem;color:var(--orange);margin-bottom:13px;text-transform:uppercase}
-.field{display:flex;flex-direction:column;gap:5px;margin-bottom:11px}
-.field label{font-size:.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--orange);opacity:.85}
-.field input{background:#ffffff08;border:1.5px solid var(--border);border-radius:7px;color:#fff;
-  font-family:'Poppins',sans-serif;font-size:.88rem;padding:8px 11px;outline:none;
-  transition:border-color .15s;width:100%}
-.field input:focus{border-color:var(--orange)}
-.field input::placeholder{color:#ffffff28}
-.btn{font-family:'Poppins',sans-serif;font-weight:700;font-size:.76rem;letter-spacing:1px;
-  text-transform:uppercase;padding:9px 18px;border:none;border-radius:7px;cursor:pointer;
-  transition:all .15s;display:inline-flex;align-items:center;gap:6px}
-.btn-o{background:var(--orange);color:#fff;box-shadow:0 4px 14px #ff5b2125}
-.btn-o:hover{background:var(--ol);transform:translateY(-1px)}
-.btn-g{background:transparent;color:#fff;border:1.5px solid var(--border)}
-.btn-g:hover{border-color:#ffffff44}
-.btn-green{background:#1db95420;color:var(--green);border:1px solid #1db95450}
-.btn-green:hover{background:#1db95440}
-.btn-app{background:#1db95418;color:var(--green);border:1px solid #1db95440}
-.btn-app:hover{background:#1db95435}
-.btn-rej{background:#e63b1f18;color:#e63b1f;border:1px solid #e63b1f40}
-.btn-rej:hover{background:#e63b1f35}
-.btn-sm{padding:5px 11px;font-size:.68rem}
-.btn-full{width:100%;justify-content:center;padding:12px}
+.hero-e{font-size:.62rem;font-weight:700;letter-spacing:4px;text-transform:uppercase;color:var(--or);margin-bottom:6px}
+.hero-t{font-family:'Paytone One',sans-serif;font-size:2rem;line-height:1.05;margin-bottom:5px}
+.hero-t span{color:var(--or)}
+.hero-s{color:var(--mu);font-size:.82rem;margin-bottom:14px;line-height:1.6}
+.hp{background:#ff5b2118;border:1px solid #ff5b2140;border-radius:50px;display:inline-block;padding:6px 13px;font-size:.7rem;font-weight:600;color:var(--or)}
+.f2b{background:#1db95415;border:1px solid #1db95440;border-radius:11px;padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px}
+.f2b-i{font-size:1.8rem}
+.f2b-t{font-family:'Paytone One',sans-serif;font-size:.95rem;color:var(--gn);margin-bottom:2px}
+.f2b-s{font-size:.72rem;color:#ffffff75;line-height:1.5}
+.ms{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:18px}
+.mc{background:var(--cd);border:1px solid var(--bd);border-radius:9px;padding:13px;text-align:center}
+.mn{font-family:'Paytone One',sans-serif;font-size:1.6rem;color:var(--or);line-height:1}
+.ml{font-size:.58rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--mu);margin-top:3px}
+.sh{font-family:'Paytone One',sans-serif;font-size:1rem;color:#fff;margin-bottom:13px;display:flex;align-items:center;gap:8px}
+.sh::after{content:'';flex:1;height:1px;background:linear-gradient(to right,var(--bd),transparent)}
+.card{background:var(--cd);border:1px solid var(--bd);border-radius:10px;padding:17px;margin-bottom:12px}
+.ct{font-family:'Paytone One',sans-serif;font-size:.85rem;color:var(--or);margin-bottom:12px;text-transform:uppercase}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.field label{font-size:.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--or);opacity:.85}
+.field input{background:#ffffff08;border:1.5px solid var(--bd);border-radius:7px;color:#fff;font-family:'Poppins',sans-serif;font-size:.86rem;padding:8px 10px;outline:none;transition:border-color .15s;width:100%}
+.field input:focus{border-color:var(--or)}
+.field input::placeholder{color:#ffffff25}
+.btn{font-family:'Poppins',sans-serif;font-weight:700;font-size:.74rem;letter-spacing:1px;text-transform:uppercase;padding:9px 17px;border:none;border-radius:7px;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
+.bo{background:var(--or);color:#fff;box-shadow:0 4px 12px #ff5b2120}
+.bo:hover{background:#ff7a45;transform:translateY(-1px)}
+.bg{background:transparent;color:#fff;border:1.5px solid var(--bd)}
+.bg:hover{border-color:#ffffff44}
+.bapp{background:#1db95418;color:var(--gn);border:1px solid #1db95440}
+.bapp:hover{background:#1db95435}
+.brej{background:#e63b1f18;color:var(--rd);border:1px solid #e63b1f40}
+.brej:hover{background:#e63b1f35}
+.bgn{background:#1db95420;color:var(--gn);border:1px solid #1db95450}
+.bsm{padding:5px 10px;font-size:.65rem}
+.bfw{width:100%;justify-content:center;padding:11px}
 .btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important}
-
-/* RANKING */
-.rr{background:var(--card);border:1px solid var(--border);border-radius:10px;
-  padding:11px 14px;margin-bottom:6px;display:flex;align-items:center;gap:11px}
-.rpos{font-family:'Paytone One',sans-serif;font-size:1.5rem;color:var(--muted);min-width:38px;text-align:center}
+.rr{background:var(--cd);border:1px solid var(--bd);border-radius:9px;padding:10px 13px;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.rpos{font-family:'Paytone One',sans-serif;font-size:1.4rem;color:var(--mu);min-width:36px;text-align:center}
 .rpos.p1{color:#f5c518}.rpos.p2{color:#c0c0c0}.rpos.p3{color:#cd7f32}
 .rinfo{flex:1}
-.rname{font-weight:700;font-size:.9rem}
-.rphone{font-size:.68rem;color:var(--muted);margin-top:1px}
-.rpts{font-family:'Paytone One',sans-serif;font-size:1.5rem;color:var(--orange);text-align:center}
-.rpts-l{font-size:.56rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);text-align:center}
-.rpts-breakdown{font-size:.64rem;color:#ffffff50;margin-top:2px;text-align:right}
-
-/* STAGE PILLS */
-.sp{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px}
-.pill{font-family:'Poppins',sans-serif;font-size:.66rem;font-weight:700;letter-spacing:1px;
-  text-transform:uppercase;padding:5px 11px;border-radius:50px;border:1.5px solid var(--border);
-  cursor:pointer;background:transparent;color:var(--muted);transition:all .15s}
-.pill.active{background:var(--orange);color:#fff;border-color:var(--orange)}
+.rname{font-weight:700;font-size:.88rem}
+.rph{font-size:.66rem;color:var(--mu);margin-top:1px}
+.rpts{font-family:'Paytone One',sans-serif;font-size:1.4rem;color:var(--or);text-align:center}
+.rpl{font-size:.54rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--mu);text-align:center}
+.sp{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:13px}
+.pill{font-size:.63rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:50px;border:1.5px solid var(--bd);cursor:pointer;background:transparent;color:var(--mu);transition:all .15s}
+.pill.active{background:var(--or);color:#fff;border-color:var(--or)}
 .pill:hover:not(.active){border-color:#ffffff33;color:#fff}
-.pill.fase2{border-color:#1db95440;color:var(--green)}
-.pill.fase2.active{background:var(--green);color:#fff;border-color:var(--green)}
-
-.mgt{font-size:.64rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;
-  color:var(--orange);opacity:.8;padding:7px 0 5px;margin-top:14px;
-  border-bottom:1px solid var(--border);margin-bottom:6px}
-.mgt.fase2{color:var(--green);opacity:1}
-
-.mr{background:var(--card);border:1px solid var(--border);border-radius:9px;
-  padding:10px 11px;margin-bottom:5px;
-  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:7px}
-.mr.locked{opacity:.6}
-.mr.predicted{border-color:#ff5b2125}
-.mr.has-result{border-color:#1db95425}
-.mr.fase2-match{border-color:#1db95418}
-.team{font-size:.72rem;font-weight:600;line-height:1.3}
-.team.home{text-align:right}
-.si{display:flex;align-items:center;gap:4px;justify-content:center}
-.si-box{width:38px;height:34px;background:#ffffff0c;border:1.5px solid var(--border);
-  border-radius:5px;color:#fff;font-size:.9rem;font-weight:700;
-  text-align:center;font-family:'Paytone One',sans-serif;outline:none}
-.si-box:focus{border-color:var(--orange)}
-.si-box.fase2{border-color:#1db95430}
-.si-box.fase2:focus{border-color:var(--green)}
-.si-box:disabled{opacity:.4;cursor:not-allowed}
-.ss{color:var(--muted);font-weight:700;font-size:.8rem}
-.mm{font-size:.58rem;color:var(--muted);text-align:center;margin-top:3px}
-.lb{font-size:.56rem;letter-spacing:1px;font-weight:700;text-transform:uppercase;
-  padding:2px 6px;border-radius:50px;display:inline-block}
-.lb-open{background:#ff5b2115;color:var(--orange)}
-.lb-open2{background:#1db95415;color:var(--green)}
-.lb-locked{background:#e63b1f15;color:#e63b1f}
-.lb-done{background:#1db95415;color:var(--green)}
-
-/* STANDINGS */
-.st{width:100%;border-collapse:collapse;font-size:.7rem;margin-bottom:14px}
-.st th{font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--orange);
-  opacity:.8;padding:4px 6px;border-bottom:1px solid var(--border);text-align:center}
+.pill.f2{border-color:#1db95440;color:var(--gn)}
+.pill.f2.active{background:var(--gn);color:#fff;border-color:var(--gn)}
+.mgt{font-size:.6rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--or);opacity:.8;padding:6px 0 4px;margin-top:13px;border-bottom:1px solid var(--bd);margin-bottom:5px}
+.mgt.f2{color:var(--gn);opacity:1}
+.mr{background:var(--cd);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;margin-bottom:4px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px}
+.mr.locked{opacity:.58}
+.mr.pred{border-color:#ff5b2122}
+.mr.hres{border-color:#1db95422}
+.mr.f2m{border-color:#1db95418}
+.tm{font-size:.68rem;font-weight:600;line-height:1.3}
+.tm.home{text-align:right}
+.si{display:flex;align-items:center;gap:3px;justify-content:center}
+.sib{width:36px;height:32px;background:#ffffff0c;border:1.5px solid var(--bd);border-radius:5px;color:#fff;font-size:.88rem;font-weight:700;text-align:center;font-family:'Paytone One',sans-serif;outline:none}
+.sib:focus{border-color:var(--or)}
+.sib.f2{border-color:#1db95430}
+.sib.f2:focus{border-color:var(--gn)}
+.sib:disabled{opacity:.4;cursor:not-allowed}
+.sv{color:var(--mu);font-weight:700;font-size:.75rem}
+.mm{font-size:.56rem;color:var(--mu);text-align:center;margin-top:2px}
+.lb{font-size:.54rem;letter-spacing:1px;font-weight:700;text-transform:uppercase;padding:2px 5px;border-radius:50px;display:inline-block}
+.lo{background:#ff5b2114;color:var(--or)}
+.lo2{background:#1db95414;color:var(--gn)}
+.llk{background:#e63b1f14;color:var(--rd)}
+.ldo{background:#1db95414;color:var(--gn)}
+.st{width:100%;border-collapse:collapse;font-size:.67rem;margin-bottom:12px}
+.st th{font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--or);opacity:.8;padding:4px 5px;border-bottom:1px solid var(--bd);text-align:center}
 .st th:first-child{text-align:left}
-.st td{padding:5px 6px;border-bottom:1px solid #ffffff07;text-align:center}
-.st td:first-child{text-align:left;font-weight:600;font-size:.72rem}
-.st tr.advance td{color:var(--green)}
-.st tr.pos3 td{color:var(--orange)}
-
-/* BRACKET KO */
-.ko-m{background:var(--card);border:1px solid var(--border);border-radius:8px;
-  padding:10px 11px;margin-bottom:5px;
-  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:7px}
-.ko-t{font-size:.7rem;font-weight:600}
-.ko-t.home{text-align:right}
-.ko-t.known{color:#fff}
-.ko-t.tbd{color:var(--muted);font-style:italic;font-size:.64rem}
-
-/* PHOTO */
-.pz{border:2px dashed var(--border);border-radius:9px;padding:18px;text-align:center;cursor:pointer;transition:border-color .15s}
-.pz:hover{border-color:var(--orange)}
-.pz img{max-width:100%;max-height:150px;border-radius:7px;object-fit:cover}
-.cr{display:grid;grid-template-columns:95px 1fr;gap:11px;align-items:start;
-  padding:11px;background:var(--card);border:1px solid var(--border);border-radius:9px;margin-bottom:7px}
-.ci{width:95px;height:72px;object-fit:cover;border-radius:5px}
-.rrow{background:var(--card);border:1px solid var(--border);border-radius:7px;
-  padding:8px 11px;margin-bottom:5px;
-  display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:7px}
-
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);
-  background:var(--orange);color:#fff;font-weight:700;font-size:.8rem;
-  padding:9px 20px;border-radius:50px;z-index:9999;letter-spacing:.5px;
-  transition:transform .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 8px 24px #00000066}
+.st td{padding:4px 5px;border-bottom:1px solid #ffffff07;text-align:center}
+.st td:first-child{text-align:left;font-weight:600;font-size:.69rem}
+.st tr.adv td{color:var(--gn)}
+.st tr.p3 td{color:var(--or)}
+.ko{background:var(--cd);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;margin-bottom:4px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px}
+.kot{font-size:.67rem;font-weight:600}
+.kot.home{text-align:right}
+.kot.known{color:#fff}
+.kot.tbd{color:var(--mu);font-style:italic;font-size:.6rem}
+.pz{border:2px dashed var(--bd);border-radius:9px;padding:16px;text-align:center;cursor:pointer;transition:border-color .15s}
+.pz:hover{border-color:var(--or)}
+.pz img{max-width:100%;max-height:140px;border-radius:7px;object-fit:cover}
+.cr{display:grid;grid-template-columns:90px 1fr;gap:10px;align-items:start;padding:10px;background:var(--cd);border:1px solid var(--bd);border-radius:9px;margin-bottom:7px}
+.ci{width:90px;height:68px;object-fit:cover;border-radius:5px}
+.rv{background:var(--cd);border:1px solid var(--bd);border-radius:7px;padding:8px 10px;margin-bottom:4px;display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:7px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--or);color:#fff;font-weight:700;font-size:.76rem;padding:8px 18px;border-radius:50px;z-index:9999;transition:transform .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 6px 20px #00000066}
 .toast.show{transform:translateX(-50%) translateY(0)}
-.empty{text-align:center;padding:32px;color:var(--muted);font-size:.84rem}
-
-@media(max-width:540px){
-  .hero-t{font-size:1.7rem}
-  .logo-t{font-size:1rem}
-}
+.empty{text-align:center;padding:30px;color:var(--mu);font-size:.82rem}
+/* SETUP */
+.setup{min-height:100vh;background:var(--d3);display:flex;align-items:center;justify-content:center;padding:20px}
+.setup-card{background:var(--cd);border:1px solid var(--bd);border-radius:14px;padding:28px;max-width:480px;width:100%}
+.setup-t{font-family:'Paytone One',sans-serif;font-size:1.4rem;color:var(--or);margin-bottom:6px}
+.setup-s{font-size:.8rem;color:var(--mu);margin-bottom:20px;line-height:1.6}
+.setup-step{background:#ffffff08;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:.78rem;line-height:1.7;color:#ffffffcc}
+.setup-step strong{color:var(--or)}
+.setup-step code{background:#ff5b2120;color:var(--or);padding:1px 6px;border-radius:4px;font-family:monospace;font-size:.78rem}
 `;
 
 function Toast({msg,show}){return React.createElement("div",{className:`toast ${show?"show":""}`},msg);}
 
-// ─── APP ──────────────────────────────────────────────────────────
-function App(){
-  const[view,setView]=useState("ranking");
-  const[data,setData]=useState(()=>loadData());
-  const[toast,setToast]=useState({msg:"",show:false});
-  const[adminUnlocked,setAdminUnlocked]=useState(false);
+// ─── SETUP SCREEN ────────────────────────────────────────────────
+function SetupScreen({onDone}){
+  const[url,setUrl]=useState("");
+  const[testing,setTesting]=useState(false);
+  const[err,setErr]=useState("");
+  const save=async()=>{
+    setErr("");
+    if(!url.trim().startsWith("https://")){setErr("La URL debe empezar con https://");return;}
+    setTesting(true);
+    try{
+      const r=await fetch(`${url.trim()}/config.json`);
+      localStorage.setItem(LS_FB,url.trim().replace(/\/$/,""));
+      setTesting(false);onDone();
+    }catch(e){setTesting(false);setErr("No se pudo conectar. Verifica la URL.");}
+  };
+  return React.createElement("div",{className:"setup"},
+    React.createElement("div",{className:"setup-card"},
+      React.createElement("div",{style:{fontFamily:"'Paytone One',sans-serif",fontSize:"1.4rem",color:"var(--or)",marginBottom:4}},"RICHIE TORTAS"),
+      React.createElement("div",{style:{fontSize:".6rem",color:"#ffffff55",letterSpacing:3,textTransform:"uppercase",marginBottom:20}},"Quiniela Mundial 2026"),
+      React.createElement("div",{className:"setup-t"},"🔧 Configuración Inicial"),
+      React.createElement("div",{className:"setup-s"},"Para que los datos sean compartidos entre todos los dispositivos, necesitas conectar una base de datos de Firebase. Sigue estos pasos (gratis, 5 minutos):"),
+      React.createElement("div",{className:"setup-step"},
+        React.createElement("strong",null,"1. Crea tu base de datos:"),React.createElement("br",null),
+        "Ve a ",React.createElement("strong",null,"console.firebase.google.com"),React.createElement("br",null),
+        "→ Crear proyecto → ponle el nombre ",React.createElement("code",null,"richie-quiniela"),React.createElement("br",null),
+        "→ Ir a ",React.createElement("strong",null,"Realtime Database")," → Crear base de datos",React.createElement("br",null),
+        "→ Elegir región ",React.createElement("code",null,"us-central1")," → Modo de prueba → Crear"
+      ),
+      React.createElement("div",{className:"setup-step"},
+        React.createElement("strong",null,"2. Copia tu URL:"),React.createElement("br",null),
+        "En la pantalla de la base de datos verás algo así:",React.createElement("br",null),
+        React.createElement("code",null,"https://richie-quiniela-default-rtdb.firebaseio.com"),React.createElement("br",null),
+        "Copia esa URL exactamente."
+      ),
+      React.createElement("div",{className:"field",style:{marginTop:16}},
+        React.createElement("label",null,"Pega aquí tu URL de Firebase"),
+        React.createElement("input",{placeholder:"https://richie-quiniela-default-rtdb.firebaseio.com",value:url,onChange:e=>setUrl(e.target.value),onKeyDown:e=>e.key==="Enter"&&save()})
+      ),
+      err&&React.createElement("div",{style:{color:"var(--rd)",fontSize:".76rem",marginBottom:10}},err),
+      React.createElement("button",{className:"btn bo bfw",onClick:save,disabled:testing||!url.trim()},testing?"Conectando...":"✅ Conectar y Continuar"),
+      React.createElement("div",{style:{marginTop:16,fontSize:".7rem",color:"var(--mu)",textAlign:"center"}},"¿Ya configuraste antes? ",React.createElement("span",{style:{color:"var(--or)",cursor:"pointer"},onClick:()=>{localStorage.removeItem(LS_FB);window.location.reload();}},"Cambiar URL"))
+    )
+  );
+}
 
-  const persist=useCallback(next=>{setData(next);saveData(next);},[]);
+// ─── APP ─────────────────────────────────────────────────────────
+function App(){
+  const fbUrl=localStorage.getItem(LS_FB);
+  const[view,setView]=useState("ranking");
+  const[data,setData]=useState({participants:{},results:{},predictions:{},fase2:false});
+  const[loading,setLoading]=useState(true);
+  const[toast,setToast]=useState({msg:"",show:false});
+  const[adminOk,setAdminOk]=useState(false);
+
+  useEffect(()=>{
+    (async()=>{
+      const[parts,results,preds,cfg]=await Promise.all([
+        fbRead("participants"),fbRead("results"),fbRead("predictions"),fbRead("config")
+      ]);
+      setData({participants:parts||{},results:results||{},predictions:preds||{},fase2:cfg?.fase2||false});
+      setLoading(false);
+    })();
+  },[]);
+
   const showToast=msg=>{setToast({msg,show:true});setTimeout(()=>setToast(t=>({...t,show:false})),2800);};
+
+  const setResult=useCallback(async(mid,side,val)=>{
+    const v=val===""?null:parseInt(val);
+    const cur=data.results[mid]||{};
+    const upd={...cur,[side]:v===null?null:v};
+    if(upd.home===null&&upd.away===null){
+      const nr={...data.results};delete nr[mid];
+      setData(d=>({...d,results:nr}));
+      await fbDelete(`results/${mid}`);
+    }else{
+      setData(d=>({...d,results:{...d.results,[mid]:upd}}));
+      await fbPatch(`results/${mid}`,upd);
+    }
+  },[data.results]);
+
+  if(!fbUrl)return React.createElement(SetupScreen,{onDone:()=>window.location.reload()});
+  if(loading)return React.createElement("div",{style:{minHeight:"100vh",background:"var(--d3)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--or)",fontFamily:"'Paytone One',sans-serif",fontSize:"1.3rem",letterSpacing:2}},"⚽ CARGANDO...");
 
   const tabs=[
     {id:"ranking",label:"🏆 Ranking"},
@@ -407,27 +464,24 @@ function App(){
     React.createElement(Toast,{msg:toast.msg,show:toast.show}),
     React.createElement("div",{className:"app"},
       React.createElement("nav",{className:"nav"},
-        React.createElement("div",{className:"nav-in"},
+        React.createElement("div",{className:"nv"},
           React.createElement("div",{className:"logo"},
             React.createElement("div",null,
               React.createElement("div",{className:"logo-t"},"RICHIE TORTAS"),
-              React.createElement("span",{className:"logo-s"},"Quiniela Mundial 2026")
-            )
+              React.createElement("span",{className:"logo-s"},"Quiniela Mundial 2026"))
           ),
           React.createElement("div",{className:"tabs"},
-            tabs.map(t=>React.createElement("button",{key:t.id,
-              className:`tab ${view===t.id?"active":""}`,
-              onClick:()=>setView(t.id)},t.label))
+            tabs.map(t=>React.createElement("button",{key:t.id,className:`tab ${view===t.id?"active":""}`,onClick:()=>setView(t.id)},t.label))
           )
         )
       ),
       React.createElement("div",{className:"main"},
         view==="ranking"&&React.createElement(RankingView,{data}),
-        view==="registro"&&React.createElement(RegistroView,{data,persist,showToast}),
-        view==="picks"&&React.createElement(PicksView,{data,persist,showToast}),
+        view==="registro"&&React.createElement(RegistroView,{data,setData,showToast}),
+        view==="picks"&&React.createElement(PicksView,{data,setData,showToast}),
         view==="bracket"&&React.createElement(BracketView,{data}),
-        view==="admin"&&React.createElement(AdminView,{data,persist,showToast,adminUnlocked,setAdminUnlocked}),
-        view==="ig"&&React.createElement(InstagramView,{data}),
+        view==="admin"&&React.createElement(AdminView,{data,setData,showToast,setResult,adminOk,setAdminOk}),
+        view==="ig"&&React.createElement(IGView,{data}),
       )
     )
   );
@@ -435,112 +489,109 @@ function App(){
 
 // ─── RANKING ─────────────────────────────────────────────────────
 function RankingView({data}){
-  const ranked=calcRanking(data.participants,data.predictions,data.results);
-  const playedF1=GROUP_MATCHES.filter(m=>data.results[m.id]).length;
-  const playedF2=KO_MATCHES.filter(m=>data.results[m.id]).length;
+  const parts=Object.values(data.participants||{}).filter(p=>p.status==="approved");
+  const ranked=parts.map(p=>{
+    let f1=0,f2=0,ex=0,ot=0;
+    const pr=data.predictions?.[p.id]||{};
+    GM.forEach(m=>{const res=data.results?.[m.id],pred=pr[m.id];if(res&&pred){const pp=calcPts(pred,res);f1+=pp;if(pp===5)ex++;else if(pp===2)ot++;}});
+    KO.forEach(m=>{const res=data.results?.[m.id],pred=pr[m.id];if(res&&pred){const pp=calcPts(pred,res);f2+=pp;if(pp===5)ex++;else if(pp===2)ot++;}});
+    return{...p,f1,f2,pts:f1+f2,ex,ot};
+  }).sort((a,b)=>b.pts-a.pts);
+  const pF1=GM.filter(m=>data.results?.[m.id]).length;
+  const pF2=KO.filter(m=>data.results?.[m.id]).length;
 
   return React.createElement(React.Fragment,null,
     React.createElement("div",{className:"hero"},
-      React.createElement("div",{className:"hero-ey"},"🌍 Copa del Mundo 2026"),
+      React.createElement("div",{className:"hero-e"},"🌍 Copa del Mundo 2026"),
       React.createElement("div",{className:"hero-t"},"QUINIELA ",React.createElement("span",null,"RICHIE TORTAS")),
       React.createElement("div",{className:"hero-s"},"Compra del 4 al 11 de junio · Predice los 104 partidos · Puntos acumulativos fase a fase."),
-      React.createElement("div",{className:"hero-pill"},"⏰ Registro hasta el 11 Jun antes del partido inaugural")
+      React.createElement("div",{className:"hp"},"⏰ Cierre de registro: 11 Jun antes del partido inaugural")
     ),
-
-    data.fase2abierta&&React.createElement("div",{className:"fase2-banner"},
-      React.createElement("div",{className:"fase2-icon"},"🏆"),
+    data.fase2&&React.createElement("div",{className:"f2b"},
+      React.createElement("div",{className:"f2b-i"},"🏆"),
       React.createElement("div",null,
-        React.createElement("div",{className:"fase2-title"},"¡Fase Eliminatoria Abierta!"),
-        React.createElement("div",{className:"fase2-sub"},"La fase de grupos terminó. Ve a ⚽ Mis Picks y llena tus predicciones de Dieciséisavos, Octavos, Cuartos, Semis y Final con los equipos reales.")
+        React.createElement("div",{className:"f2b-t"},"¡Fase Eliminatoria Abierta!"),
+        React.createElement("div",{className:"f2b-s"},"Ve a ⚽ Mis Picks y llena tus predicciones de Dieciséisavos, Octavos, Cuartos, Semis y Final con los equipos reales.")
       )
     ),
-
     React.createElement("div",{className:"ms"},
-      [["Participantes",data.participants.filter(p=>p.status==="approved").length],
-       ["Fase Grupos",`${playedF1}/72`],
-       ["Eliminatorias",`${playedF2}/32`]]
-        .map(([l,n])=>React.createElement("div",{className:"ms-c",key:l},
-          React.createElement("div",{className:"ms-n"},n),
-          React.createElement("div",{className:"ms-l"},l)))
+      [["Participantes",parts.length],["Grupos",`${pF1}/72`],["Eliminatorias",`${pF2}/32`]]
+        .map(([l,n])=>React.createElement("div",{className:"mc",key:l},React.createElement("div",{className:"mn"},n),React.createElement("div",{className:"ml"},l)))
     ),
-
     React.createElement("div",{className:"sh"},"🏆 Ranking en Vivo"),
-    React.createElement("div",{style:{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}},
-      React.createElement("span",{style:{fontSize:".68rem",fontWeight:700,padding:"3px 9px",borderRadius:50,background:"#ff5b2118",color:"var(--orange)"}},"⭐ Marcador exacto = 5 pts"),
-      React.createElement("span",{style:{fontSize:".68rem",fontWeight:700,padding:"3px 9px",borderRadius:50,background:"#ffffff10",color:"#ffffff75"}},"✅ Resultado correcto = 2 pts"),
+    React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap",marginBottom:11}},
+      React.createElement("span",{style:{fontSize:".65rem",fontWeight:700,padding:"3px 8px",borderRadius:50,background:"#ff5b2118",color:"var(--or)"}},"⭐ Marcador exacto = 5 pts"),
+      React.createElement("span",{style:{fontSize:".65rem",fontWeight:700,padding:"3px 8px",borderRadius:50,background:"#ffffff10",color:"#ffffff70"}},"✅ Resultado correcto = 2 pts"),
     ),
-
-    ranked.length===0
-      ?React.createElement("div",{className:"empty"},"⚽ Aún no hay participantes aprobados.")
+    ranked.length===0?React.createElement("div",{className:"empty"},"⚽ Aún no hay participantes aprobados.")
       :ranked.map((p,i)=>React.createElement("div",{className:"rr",key:p.id},
-        React.createElement("div",{className:`rpos ${i===0?"p1":i===1?"p2":i===2?"p3":""}`},
-          i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`),
+        React.createElement("div",{className:`rpos ${i===0?"p1":i===1?"p2":i===2?"p3":""}`},i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`),
         React.createElement("div",{className:"rinfo"},
           React.createElement("div",{className:"rname"},p.name),
-          React.createElement("div",{className:"rphone"},`${p.phone} · ${p.city||"—"}`),
-          React.createElement("div",{style:{fontSize:".64rem",color:"#a07060",marginTop:2}},
-            `⭐${p.exact} exactos · ✅${p.outcome} acertados`)
+          React.createElement("div",{className:"rph"},`${p.phone} · ${p.city||"—"}`),
+          React.createElement("div",{style:{fontSize:".62rem",color:"var(--mu)",marginTop:1}},`⭐${p.ex} exactos · ✅${p.ot} acertados`)
         ),
         React.createElement("div",null,
           React.createElement("div",{className:"rpts"},p.pts),
-          React.createElement("div",{className:"rpts-l"},"pts"),
-          p.f2pts>0&&React.createElement("div",{className:"rpts-breakdown"},`${p.f1pts}+${p.f2pts}`)
+          React.createElement("div",{className:"rpl"},"pts"),
+          p.f2>0&&React.createElement("div",{style:{fontSize:".56rem",color:"#ffffff45",textAlign:"right"}},`${p.f1}+${p.f2}`)
         )
       )),
-
-    data.participants.filter(p=>p.status==="pending").length>0&&
-      React.createElement("div",{style:{marginTop:10,padding:"8px 12px",background:"#ff5b2110",borderRadius:7,fontSize:".72rem",color:"var(--orange)"}},
-        `⏳ ${data.participants.filter(p=>p.status==="pending").length} participante(s) pendientes de validación.`)
+    Object.values(data.participants||{}).filter(p=>p.status==="pending").length>0&&
+      React.createElement("div",{style:{marginTop:10,padding:"7px 12px",background:"#ff5b2110",borderRadius:7,fontSize:".7rem",color:"var(--or)"}},
+        `⏳ ${Object.values(data.participants||{}).filter(p=>p.status==="pending").length} participante(s) pendientes de validación.`)
   );
 }
 
 // ─── REGISTRO ────────────────────────────────────────────────────
-function RegistroView({data,persist,showToast}){
+function RegistroView({data,setData,showToast}){
   const[form,setForm]=useState({name:"",phone:"",city:""});
   const[photo,setPhoto]=useState(null);
   const[done,setDone]=useState(false);
   const[saving,setSaving]=useState(false);
   const fileRef=useRef();
+  const REG_CLOSE=new Date("2026-06-11T19:59:00-04:00");
+  const regOpen=new Date()<=REG_CLOSE;
 
-  const handlePhoto=async e=>{const f=e.target.files?.[0];if(!f)return;setPhoto(await compressImage(f));};
+  const handlePhoto=async e=>{const f=e.target.files?.[0];if(!f)return;setPhoto(await compressImg(f));};
   const submit=async()=>{
     if(!form.name.trim()||!form.phone.trim()||!photo)return;
-    if(data.participants.find(p=>p.phone.replace(/\s/g,"")===form.phone.replace(/\s/g,""))){showToast("⚠️ Ese teléfono ya existe");return;}
+    const existing=Object.values(data.participants||{}).find(p=>p.phone.replace(/\s/g,"")===form.phone.replace(/\s/g,""));
+    if(existing){showToast("⚠️ Ese teléfono ya está registrado");return;}
     setSaving(true);
     const id=`p_${Date.now()}`;
-    persist({...data,participants:[...data.participants,{id,name:form.name.trim(),phone:form.phone.trim(),city:form.city.trim(),photo,status:"pending",createdAt:new Date().toISOString()}]});
+    const p={id,name:form.name.trim(),phone:form.phone.trim(),city:form.city.trim(),photo,status:"pending",createdAt:new Date().toISOString()};
+    await fbWrite(`participants/${id}`,p);
+    setData(d=>({...d,participants:{...d.participants,[id]:p}}));
     setDone(true);setSaving(false);showToast("✅ ¡Registro enviado!");
   };
 
-  if(!isRegOpen())return React.createElement("div",{className:"card",style:{textAlign:"center",padding:32}},
-    React.createElement("div",{style:{fontSize:"2.5rem",marginBottom:10}},"⏰"),
-    React.createElement("div",{style:{fontFamily:"'Paytone One',sans-serif",fontSize:"1.3rem",marginBottom:5}},"Registro Cerrado"),
-    React.createElement("div",{style:{color:"var(--muted)"}},"El período de registro finalizó."));
+  if(!regOpen)return React.createElement("div",{className:"card",style:{textAlign:"center",padding:30}},
+    React.createElement("div",{style:{fontSize:"2.2rem",marginBottom:9}},"⏰"),
+    React.createElement("div",{style:{fontFamily:"'Paytone One',sans-serif",fontSize:"1.2rem",marginBottom:5}},"Registro Cerrado"),
+    React.createElement("div",{style:{color:"var(--mu)"}},"El período de registro finalizó."));
 
-  if(done)return React.createElement("div",{className:"card",style:{textAlign:"center",padding:32}},
-    React.createElement("div",{style:{fontSize:"2.5rem",marginBottom:8}},"🎉"),
-    React.createElement("div",{style:{fontFamily:"'Paytone One',sans-serif",fontSize:"1.4rem",color:"var(--orange)",marginBottom:7}},"¡Listo!"),
-    React.createElement("div",{style:{color:"var(--muted)",marginBottom:16,lineHeight:1.7}},"Tu registro fue enviado. Una vez aprobada tu comanda, entra a ",
-      React.createElement("strong",{style:{color:"#fff"}},"⚽ Mis Picks")," con tu teléfono."),
-    React.createElement("div",{style:{background:"#ff5b2115",border:"1px solid #ff5b2140",borderRadius:7,padding:"8px 12px",fontSize:".78rem",color:"var(--orange)"}},`Teléfono: ${form.phone}`));
+  if(done)return React.createElement("div",{className:"card",style:{textAlign:"center",padding:28}},
+    React.createElement("div",{style:{fontSize:"2.2rem",marginBottom:8}},"🎉"),
+    React.createElement("div",{style:{fontFamily:"'Paytone One',sans-serif",fontSize:"1.3rem",color:"var(--or)",marginBottom:6}},"¡Listo!"),
+    React.createElement("div",{style:{color:"var(--mu)",marginBottom:14,lineHeight:1.7,fontSize:".82rem"}},"Tu registro fue enviado. Una vez aprobada tu comanda, entra a ",React.createElement("strong",{style:{color:"#fff"}},"⚽ Mis Picks")," con tu teléfono."),
+    React.createElement("div",{style:{background:"#ff5b2115",border:"1px solid #ff5b2140",borderRadius:7,padding:"7px 11px",fontSize:".76rem",color:"var(--or)"}},`Teléfono: ${form.phone}`));
 
   return React.createElement(React.Fragment,null,
     React.createElement("div",{className:"sh"},"📝 Registro"),
-    React.createElement("div",{className:"card",style:{marginBottom:11,fontSize:".8rem",color:"var(--muted)",lineHeight:1.8}},
-      React.createElement("strong",{style:{color:"var(--orange)"}},"¿Cómo participar?"),React.createElement("br",null),
+    React.createElement("div",{className:"card",style:{fontSize:".78rem",color:"var(--mu)",lineHeight:1.8,marginBottom:10}},
+      React.createElement("strong",{style:{color:"var(--or)"}},"¿Cómo participar?"),React.createElement("br",null),
       "1. Compra en Richie Tortas del ",React.createElement("strong",{style:{color:"#fff"}},"4 al 11 de junio"),React.createElement("br",null),
-      "2. Sube aquí la foto de tu comanda",React.createElement("br",null),
-      "3. ",React.createElement("strong",{style:{color:"#fff"}},"Fase 1:")," Llena tus 72 predicciones de grupos (hasta kick-off de cada partido)",React.createElement("br",null),
-      "4. ",React.createElement("strong",{style:{color:"var(--green)"}},"Fase 2:")," Cuando acaben los grupos, vuelve a llenar las eliminatorias con los equipos reales",React.createElement("br",null),
+      "2. Sube la foto de tu comanda aquí",React.createElement("br",null),
+      "3. ",React.createElement("strong",{style:{color:"#fff"}},"Fase 1:")," Predice los 72 partidos de grupos",React.createElement("br",null),
+      "4. ",React.createElement("strong",{style:{color:"var(--gn)"}},"Fase 2:")," Cuando terminen grupos, predice eliminatorias con equipos reales",React.createElement("br",null),
       "5. ¡Puntos acumulativos todo el torneo!"
     ),
     React.createElement("div",{className:"card"},
       React.createElement("div",{className:"ct"},"Tus Datos"),
-      React.createElement("div",{className:"field"},
-        React.createElement("label",null,"Nombre Completo *"),
-        React.createElement("input",{value:form.name,onChange:e=>setForm(f=>({...f,name:e.target.value})),placeholder:"Ej. María González"})
-      ),
-      React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}},
+      React.createElement("div",{className:"field"},React.createElement("label",null,"Nombre Completo *"),
+        React.createElement("input",{value:form.name,onChange:e=>setForm(f=>({...f,name:e.target.value})),placeholder:"Ej. María González"})),
+      React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
         React.createElement("div",{className:"field"},React.createElement("label",null,"WhatsApp *"),
           React.createElement("input",{value:form.phone,onChange:e=>setForm(f=>({...f,phone:e.target.value})),placeholder:"+58 412 000 0000"})),
         React.createElement("div",{className:"field"},React.createElement("label",null,"Ciudad"),
@@ -551,166 +602,117 @@ function RegistroView({data,persist,showToast}){
       React.createElement("div",{className:"ct"},"📷 Foto de tu Comanda *"),
       React.createElement("div",{className:"pz",onClick:()=>fileRef.current?.click()},
         photo?React.createElement("img",{src:photo,alt:"comanda"})
-          :React.createElement("div",{style:{padding:14}},
-            React.createElement("div",{style:{fontSize:"1.6rem"}},"📸"),
-            React.createElement("div",{style:{color:"var(--muted)",fontSize:".78rem",marginTop:5}},"Toca para subir tu ticket de compra"))
-      ),
+          :React.createElement("div",{style:{padding:12}},React.createElement("div",{style:{fontSize:"1.5rem"}},"📸"),
+            React.createElement("div",{style:{color:"var(--mu)",fontSize:".76rem",marginTop:4}},"Toca para subir tu ticket de compra"))),
       React.createElement("input",{ref:fileRef,type:"file",accept:"image/*",style:{display:"none"},onChange:handlePhoto}),
-      photo&&React.createElement("div",{style:{marginTop:5,fontSize:".68rem",color:"var(--green)"}},"✅ Foto cargada")
+      photo&&React.createElement("div",{style:{marginTop:5,fontSize:".66rem",color:"var(--gn)"}},"✅ Foto cargada")
     ),
-    React.createElement("button",{className:"btn btn-o btn-full",
-      disabled:!form.name.trim()||!form.phone.trim()||!photo||saving,onClick:submit},
-      saving?"Enviando...":"🎟 Enviar Registro")
+    React.createElement("button",{className:"btn bo bfw",disabled:!form.name.trim()||!form.phone.trim()||!photo||saving,onClick:submit},saving?"Enviando...":"🎟 Enviar Registro")
   );
 }
 
 // ─── PICKS VIEW ──────────────────────────────────────────────────
-function PicksView({data,persist,showToast}){
+function PicksView({data,setData,showToast}){
   const[phone,setPhone]=useState("");
-  const[participant,setParticipant]=useState(null);
+  const[part,setPart]=useState(null);
   const[lp,setLp]=useState({});
   const[sf,setSf]=useState("group");
   const[saving,setSaving]=useState(false);
   const[searched,setSearched]=useState(false);
 
   const lookup=()=>{
-    const p=data.participants.find(x=>x.phone.replace(/\s/g,"")===phone.replace(/\s/g,""));
+    const p=Object.values(data.participants||{}).find(x=>x.phone.replace(/\s/g,"")===phone.replace(/\s/g,""));
     setSearched(true);
-    if(p){setParticipant(p);setLp(data.predictions[p.id]||{});}
-    else setParticipant(null);
+    if(p){setPart(p);setLp(data.predictions?.[p.id]||{});}
+    else setPart(null);
   };
   const setPred=(mid,side,val)=>{
     const v=val.replace(/[^0-9]/g,"").slice(0,2);
     setLp(prev=>({...prev,[mid]:{...(prev[mid]||{}),[side]:v}}));
   };
   const saveAll=async()=>{
-    setSaving(true);persist({...data,predictions:{...data.predictions,[participant.id]:lp}});
+    setSaving(true);
+    await fbWrite(`predictions/${part.id}`,lp);
+    setData(d=>({...d,predictions:{...d.predictions,[part.id]:lp}}));
     showToast("💾 Predicciones guardadas");setSaving(false);
   };
 
-  // Stage config
-  const fase1Stages=[{id:"group",label:"Grupos 🔴",fase:1}];
-  const fase2Stages=[
-    {id:"r32",label:"Dieciséisavos",fase:2},
-    {id:"r16",label:"Octavos",fase:2},
-    {id:"qf",label:"Cuartos",fase:2},
-    {id:"sf",label:"Semis",fase:2},
-    {id:"final",label:"Final",fase:2},
-  ];
-  const allStages=[...fase1Stages,...(data.fase2abierta?fase2Stages:[])];
-
-  const stageMatches={
-    group:GROUP_MATCHES,r32:R32,r16:R16,qf:QF,
-    sf:SF,final:[TPLACE,FINAL],
-  };
-  const visibleMatches=stageMatches[sf]||[];
-
-  // Group by sub-label
+  const f1stages=[{id:"group",label:"Grupos 🔴"}];
+  const f2stages=[{id:"r32",label:"Dieciséisavos"},{id:"r16",label:"Octavos"},{id:"qf",label:"Cuartos"},{id:"sf",label:"Semis"},{id:"fn",label:"Final"}];
+  const stageMatches={group:GM,r32:R32,r16:R16,qf:QF,sf:SF,fn:[THIRD,FINAL]};
+  const isF2=f2stages.some(s=>s.id===sf);
+  const vis=stageMatches[sf]||[];
   const grouped={};
-  visibleMatches.forEach(m=>{
-    const k=sf==="group"?(m.group||"?"):(m.label?.split("·")[0]?.trim()||"?");
-    if(!grouped[k])grouped[k]=[];grouped[k].push(m);
-  });
+  vis.forEach(m=>{const k=sf==="group"?(m.g||"?"):(m.label?.split("·")[0]?.trim()||"?");if(!grouped[k])grouped[k]=[];grouped[k].push(m);});
+  const filledF1=GM.filter(m=>{const p=lp[m.id];return p&&p.home!==""&&p.home!==undefined&&p.away!==""&&p.away!==undefined;}).length;
+  const filledF2=KO.filter(m=>{const p=lp[m.id];return p&&p.home!==""&&p.home!==undefined&&p.away!==""&&p.away!==undefined;}).length;
 
-  const isFase2Stage=fase2Stages.some(s=>s.id===sf);
-
-  // Count filled
-  const filledF1=GROUP_MATCHES.filter(m=>{const p=lp[m.id];return p&&p.home!==""&&p.home!==undefined&&p.away!==""&&p.away!==undefined;}).length;
-  const filledF2=KO_MATCHES.filter(m=>{const p=lp[m.id];return p&&p.home!==""&&p.home!==undefined&&p.away!==""&&p.away!==undefined;}).length;
-
-  if(!participant)return React.createElement(React.Fragment,null,
+  if(!part)return React.createElement(React.Fragment,null,
     React.createElement("div",{className:"sh"},"⚽ Mis Predicciones"),
-    data.fase2abierta&&React.createElement("div",{className:"fase2-banner"},
-      React.createElement("div",{className:"fase2-icon"},"🏆"),
-      React.createElement("div",null,
-        React.createElement("div",{className:"fase2-title"},"¡Fase Eliminatoria Abierta!"),
-        React.createElement("div",{className:"fase2-sub"},"Entra con tu teléfono y llena tus picks de eliminatorias con los equipos reales.")
-      )
-    ),
+    data.fase2&&React.createElement("div",{className:"f2b"},React.createElement("div",{className:"f2b-i"},"🏆"),
+      React.createElement("div",null,React.createElement("div",{className:"f2b-t"},"¡Fase Eliminatoria Abierta!"),
+        React.createElement("div",{className:"f2b-s"},"Entra con tu teléfono y llena tus picks de eliminatorias."))),
     React.createElement("div",{className:"card"},
       React.createElement("div",{className:"ct"},"Entrar con mi Teléfono"),
-      React.createElement("div",{className:"field"},
-        React.createElement("label",null,"Tu WhatsApp / Teléfono"),
-        React.createElement("input",{placeholder:"+58 412 000 0000",value:phone,
-          onChange:e=>setPhone(e.target.value),onKeyDown:e=>e.key==="Enter"&&lookup()})
-      ),
-      React.createElement("button",{className:"btn btn-o",onClick:lookup,disabled:!phone.trim()},"Buscar mis picks"),
-      searched&&!participant&&React.createElement("div",{style:{marginTop:9,color:"#e63b1f",fontSize:".76rem"}},"⚠️ No encontramos ese número. ¿Ya te registraste?")
+      React.createElement("div",{className:"field"},React.createElement("label",null,"Tu WhatsApp / Teléfono"),
+        React.createElement("input",{placeholder:"+58 412 000 0000",value:phone,onChange:e=>setPhone(e.target.value),onKeyDown:e=>e.key==="Enter"&&lookup()})),
+      React.createElement("button",{className:"btn bo",onClick:lookup,disabled:!phone.trim()},"Buscar mis picks"),
+      searched&&!part&&React.createElement("div",{style:{marginTop:8,color:"var(--rd)",fontSize:".74rem"}},"⚠️ No encontramos ese número.")
     )
   );
 
   return React.createElement(React.Fragment,null,
     React.createElement("div",{className:"sh"},"⚽ Mis Predicciones"),
-
-    // Header card
-    React.createElement("div",{className:"card",style:{marginBottom:11}},
+    React.createElement("div",{className:"card",style:{marginBottom:10}},
       React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:7}},
         React.createElement("div",null,
-          React.createElement("div",{style:{fontWeight:700}},participant.name),
-          React.createElement("div",{style:{fontSize:".68rem",color:"var(--muted)"}},
-            participant.status==="pending"?"⏳ Comanda pendiente":participant.status==="approved"?"✅ Aprobado":"❌ Rechazada"),
-          React.createElement("div",{style:{fontSize:".64rem",marginTop:3,color:"#ffffff60"}},
-            `Grupos: ${filledF1}/72`,data.fase2abierta?` · Elim: ${filledF2}/32`:"")
+          React.createElement("div",{style:{fontWeight:700,fontSize:".9rem"}},part.name),
+          React.createElement("div",{style:{fontSize:".66rem",color:"var(--mu)"}},part.status==="pending"?"⏳ Comanda pendiente":part.status==="approved"?"✅ Aprobado":"❌ Rechazada"),
+          React.createElement("div",{style:{fontSize:".62rem",color:"#ffffff55",marginTop:2}},`Grupos: ${filledF1}/72`,data.fase2?` · Elim: ${filledF2}/32`:"")
         ),
         React.createElement("div",{style:{display:"flex",gap:6,alignItems:"center"}},
-          React.createElement("button",{className:"btn btn-o btn-sm",onClick:saveAll,disabled:saving},saving?"...":"💾 Guardar"),
-          React.createElement("button",{className:"btn btn-g btn-sm",onClick:()=>{setParticipant(null);setSearched(false);setPhone("");}},">< Salir")
+          React.createElement("button",{className:"btn bo bsm",onClick:saveAll,disabled:saving},saving?"...":"💾 Guardar"),
+          React.createElement("button",{className:"btn bg bsm",onClick:()=>{setPart(null);setSearched(false);setPhone("");}},"Salir")
         )
       )
     ),
-
-    // Fase 2 banner inside picks
-    data.fase2abierta&&React.createElement("div",{style:{background:"#1db95412",border:"1px solid #1db95430",borderRadius:9,padding:"11px 14px",marginBottom:13,fontSize:".76rem",color:"var(--green)",lineHeight:1.6}},
-      "🏆 ",React.createElement("strong",null,"Fase Eliminatoria abierta")," — Las eliminatorias tienen los equipos reales. Tus picks de grupos quedan como están (bloqueados). Llena ahora los 32 partidos eliminatorios. Los puntos se suman a los de grupos."
-    ),
-
-    // Stage selector
+    data.fase2&&React.createElement("div",{style:{background:"#1db95410",border:"1px solid #1db95428",borderRadius:8,padding:"9px 13px",marginBottom:12,fontSize:".72rem",color:"var(--gn)",lineHeight:1.6}},
+      "🏆 ",React.createElement("strong",null,"Fase 2 abierta")," — Llena las eliminatorias con los equipos reales. Los puntos se suman a los de grupos."),
     React.createElement("div",{className:"sp"},
-      allStages.map(s=>React.createElement("button",{key:s.id,
-        className:`pill ${sf===s.id?"active":""} ${s.fase===2?"fase2":""}`,
+      [...f1stages,...(data.fase2?f2stages:[])].map(s=>React.createElement("button",{key:s.id,
+        className:`pill ${sf===s.id?"active":""} ${f2stages.some(x=>x.id===s.id)?"f2":""}`,
         onClick:()=>setSf(s.id)},s.label))
     ),
-
-    // Matches
     Object.entries(grouped).map(([key,matches])=>
       React.createElement("div",{key},
-        React.createElement("div",{className:`mgt ${isFase2Stage?"fase2":""}`},sf==="group"?`Grupo ${key}`:key),
+        React.createElement("div",{className:`mgt ${isF2?"f2":""}`},sf==="group"?`Grupo ${key}`:key),
         matches.map(m=>{
-          const locked=isLocked(m.kickoff);
-          // If fase1 stage, also lock if fase2 is open (group stage done)
-          const fullyLocked=locked||(isFase2Stage&&false);
+          const isLk=locked(m.k);
           const pred=lp[m.id]||{};
           const hasPred=pred.home!==undefined&&pred.home!==""&&pred.away!==undefined&&pred.away!=="";
-          const res=data.results[m.id];
-          const homeLabel=m.home&&typeof m.home==="string"?m.home:resolveTeam(m.home,data.results,KO_MATCHES);
-          const awayLabel=m.away&&typeof m.away==="string"?m.away:resolveTeam(m.away,data.results,KO_MATCHES);
-          const isKO=isFase2Stage;
-          return React.createElement("div",{key:m.id,
-            className:`mr ${locked?"locked":""} ${hasPred?"predicted":""} ${res?"has-result":""} ${isKO?"fase2-match":""}`},
-            React.createElement("div",{className:"team home"},homeLabel),
+          const res=data.results?.[m.id];
+          const hL=m.h&&typeof m.h==="string"?m.h:resolveTeam(m.h,data.results||{});
+          const aL=m.a&&typeof m.a==="string"?m.a:resolveTeam(m.a,data.results||{});
+          return React.createElement("div",{key:m.id,className:`mr ${isLk?"locked":""} ${hasPred?"pred":""} ${res?"hres":""} ${isF2?"f2m":""}`},
+            React.createElement("div",{className:"tm home"},hL),
             React.createElement("div",null,
               React.createElement("div",{className:"si"},
-                React.createElement("input",{className:`si-box ${isKO?"fase2":""}`,type:"number",min:0,
-                  disabled:locked,value:pred.home??"",onChange:e=>setPred(m.id,"home",e.target.value)}),
-                React.createElement("span",{className:"ss"},"-"),
-                React.createElement("input",{className:`si-box ${isKO?"fase2":""}`,type:"number",min:0,
-                  disabled:locked,value:pred.away??"",onChange:e=>setPred(m.id,"away",e.target.value)})
+                React.createElement("input",{className:`sib ${isF2?"f2":""}`,type:"number",min:0,disabled:isLk,value:pred.home??"",onChange:e=>setPred(m.id,"home",e.target.value)}),
+                React.createElement("span",{className:"sv"},"-"),
+                React.createElement("input",{className:`sib ${isF2?"f2":""}`,type:"number",min:0,disabled:isLk,value:pred.away??"",onChange:e=>setPred(m.id,"away",e.target.value)})
               ),
               React.createElement("div",{className:"mm"},
-                fmtDate(m.kickoff),React.createElement("br",null),
-                React.createElement("span",{className:`lb ${locked?(res?"lb-done":"lb-locked"):(isKO?"lb-open2":"lb-open")}`},
-                  locked?(res?`✅ ${res.home}-${res.away}`:"🔒 Cerrado"):(isKO?"✏️ Editable (Fase 2)":"✏️ Editable"))
-              )
+                fmtD(m.k),React.createElement("br",null),
+                React.createElement("span",{className:`lb ${isLk?(res?"ldo":"llk"):(isF2?"lo2":"lo")}`},
+                  isLk?(res?`✅ ${res.home}-${res.away}`:"🔒 Cerrado"):(isF2?"✏️ Editable (Fase 2)":"✏️ Editable")))
             ),
-            React.createElement("div",{className:"team away"},awayLabel)
+            React.createElement("div",{className:"tm away"},aL)
           );
         })
       )
     ),
-
-    React.createElement("div",{style:{marginTop:16,display:"flex",justifyContent:"center"}},
-      React.createElement("button",{className:"btn btn-o",style:{padding:"11px 32px"},onClick:saveAll,disabled:saving},
-        saving?"Guardando...":"💾 Guardar")
+    React.createElement("div",{style:{marginTop:14,display:"flex",justifyContent:"center"}},
+      React.createElement("button",{className:"btn bo",style:{padding:"10px 28px"},onClick:saveAll,disabled:saving},saving?"Guardando...":"💾 Guardar Predicciones")
     )
   );
 }
@@ -718,59 +720,46 @@ function PicksView({data,persist,showToast}){
 // ─── BRACKET VIEW ────────────────────────────────────────────────
 function BracketView({data}){
   const[sel,setSel]=useState("A");
-  const st=calcStandings(sel,GROUP_MATCHES,data.results);
-  const played=GROUP_MATCHES.filter(m=>m.group===sel&&data.results[m.id]).length;
-
-  const KOSections=[
-    {label:"Dieciséisavos de Final (Round of 32)",matches:R32,color:"var(--orange)"},
-    {label:"Octavos de Final (Round of 16)",matches:R16,color:"#3b82f6"},
-    {label:"Cuartos de Final",matches:QF,color:"#8b5cf6"},
-    {label:"Semifinales",matches:SF,color:"#f59e0b"},
-    {label:"Final & 3er Lugar",matches:[TPLACE,FINAL],color:"#f5c518"},
+  const st=standings(sel,data.results||{});
+  const pl=GM.filter(m=>m.g===sel&&data.results?.[m.id]).length;
+  const KOSecs=[
+    {label:"Dieciséisavos de Final",matches:R32,c:"var(--or)"},
+    {label:"Octavos de Final",matches:R16,c:"#3b82f6"},
+    {label:"Cuartos de Final",matches:QF,c:"#8b5cf6"},
+    {label:"Semifinales",matches:SF,c:"#f59e0b"},
+    {label:"Final & 3er Lugar",matches:[THIRD,FINAL],c:"#f5c518"},
   ];
-
   return React.createElement(React.Fragment,null,
     React.createElement("div",{className:"sh"},"📊 Bracket & Tablas"),
-    React.createElement("div",{className:"sp"},
-      Object.keys(GROUPS).map(g=>React.createElement("button",{key:g,
-        className:`pill ${sel===g?"active":""}`,onClick:()=>setSel(g)},`Grupo ${g}`))
-    ),
+    React.createElement("div",{className:"sp"},Object.keys(GROUPS).map(g=>React.createElement("button",{key:g,className:`pill ${sel===g?"active":""}`,onClick:()=>setSel(g)},`Grupo ${g}`))),
     React.createElement("div",{className:"card"},
       React.createElement("div",{className:"ct"},`Grupo ${sel}`),
       React.createElement("table",{className:"st"},
-        React.createElement("thead",null,React.createElement("tr",null,
-          ["Equipo","PJ","G","E","P","GF","GA","DG","Pts"].map(h=>React.createElement("th",{key:h},h))
-        )),
-        React.createElement("tbody",null,
-          st.map((t,i)=>React.createElement("tr",{key:t.team,className:i<2?"advance":i===2?"pos3":""},
-            React.createElement("td",null,t.team),
-            [t.played,t.w,t.d,t.l,t.gf,t.ga,t.gd,t.pts].map((v,j)=>React.createElement("td",{key:j},v))
-          ))
-        )
+        React.createElement("thead",null,React.createElement("tr",null,["Equipo","PJ","G","E","P","GF","GA","DG","Pts"].map(h=>React.createElement("th",{key:h},h)))),
+        React.createElement("tbody",null,st.map((t,i)=>React.createElement("tr",{key:t.team,className:i<2?"adv":i===2?"p3":""},
+          React.createElement("td",null,t.team),[t.played,t.w,t.d,t.l,t.gf,t.ga,t.gd,t.pts].map((v,j)=>React.createElement("td",{key:j},v))
+        )))
       ),
-      React.createElement("div",{style:{fontSize:".62rem",color:"var(--muted)",marginTop:5}},
-        `${played}/6 partidos jugados · 🟢 Clasifican directo · 🟠 Posible mejor 3ro`)
+      React.createElement("div",{style:{fontSize:".6rem",color:"var(--mu)",marginTop:4}},`${pl}/6 jugados · 🟢 Clasifican · 🟠 Posible mejor 3ro`)
     ),
-
-    KOSections.map(({label,matches,color})=>
+    KOSecs.map(({label,matches,c})=>
       React.createElement("div",{className:"card",key:label},
-        React.createElement("div",{className:"ct",style:{color}},label),
+        React.createElement("div",{className:"ct",style:{color:c}},label),
         matches.map(m=>{
-          const h=typeof m.home==="string"?m.home:resolveTeam(m.home,data.results,KO_MATCHES);
-          const a=typeof m.away==="string"?m.away:resolveTeam(m.away,data.results,KO_MATCHES);
-          const res=data.results[m.id];
-          const hKnown=!h.includes("⏳")&&!h.includes("º Grupo")&&!h.includes("Mejor")&&!h.includes("M");
-          const aKnown=!a.includes("⏳")&&!a.includes("º Grupo")&&!a.includes("Mejor")&&!a.includes("M");
-          return React.createElement("div",{className:"ko-m",key:m.id,
-            style:{borderColor:m.id==="final_104"?"#f5c518":""}},
-            React.createElement("div",{className:`ko-t home ${hKnown?"known":"tbd"}`},h),
+          const hT=typeof m.h==="string"?m.h:resolveTeam(m.h,data.results||{});
+          const aT=typeof m.a==="string"?m.a:resolveTeam(m.a,data.results||{});
+          const res=data.results?.[m.id];
+          const hK=!hT.includes("⏳")&&!hT.includes("º Grupo")&&!hT.includes("Mejor")&&!hT.includes("M");
+          const aK=!aT.includes("⏳")&&!aT.includes("º Grupo")&&!aT.includes("Mejor")&&!aT.includes("M");
+          return React.createElement("div",{className:"ko",key:m.id,style:{borderColor:m.id==="fn_104"?"#f5c518":""}},
+            React.createElement("div",{className:`kot home ${hK?"known":"tbd"}`},hT),
             React.createElement("div",{style:{textAlign:"center"}},
-              React.createElement("div",{style:{fontSize:".56rem",color,fontWeight:700,marginBottom:2}},m.label?.split("·")[1]?.trim()||""),
+              React.createElement("div",{style:{fontSize:".52rem",color:c,fontWeight:700,marginBottom:2}},m.label?.split("·")[1]?.trim()||""),
               res&&res.home!==undefined
-                ?React.createElement("span",{style:{fontFamily:"'Paytone One',sans-serif",fontSize:".95rem",color:"#fff"}},`${res.home} – ${res.away}`)
-                :React.createElement("span",{style:{color:"var(--muted)",fontSize:".64rem"}},fmtDate(m.kickoff).split("·")[1]?.trim()||"")
+                ?React.createElement("span",{style:{fontFamily:"'Paytone One',sans-serif",fontSize:".9rem"}},`${res.home}–${res.away}`)
+                :React.createElement("span",{style:{color:"var(--mu)",fontSize:".58rem"}},fmtD(m.k).split("·")[1]?.trim()||"")
             ),
-            React.createElement("div",{className:`ko-t away ${aKnown?"known":"tbd"}`},a)
+            React.createElement("div",{className:`kot away ${aK?"known":"tbd"}`},aT)
           );
         })
       )
@@ -778,135 +767,107 @@ function BracketView({data}){
   );
 }
 
-// ─── ADMIN ────────────────────────────────────────────────────────
-function AdminView({data,persist,showToast,adminUnlocked,setAdminUnlocked}){
+// ─── ADMIN ───────────────────────────────────────────────────────
+function AdminView({data,setData,showToast,setResult,adminOk,setAdminOk}){
   const[pin,setPin]=useState("");
   const[at,setAt]=useState("comandas");
   const[rf,setRf]=useState("group");
-  const ADMIN_PIN="richie2026";
+  const PIN="richie2026";
 
-  if(!adminUnlocked)return React.createElement("div",{className:"card",style:{maxWidth:330,margin:"36px auto"}},
-    React.createElement("div",{className:"ct"},"🔐 Acceso Admin"),
-    React.createElement("div",{className:"field"},
-      React.createElement("label",null,"Contraseña"),
-      React.createElement("input",{type:"password",placeholder:"••••••••",value:pin,
-        onChange:e=>setPin(e.target.value),
-        onKeyDown:e=>e.key==="Enter"&&(pin===ADMIN_PIN?setAdminUnlocked(true):showToast("❌ Contraseña incorrecta"))})
-    ),
-    React.createElement("button",{className:"btn btn-o",
-      onClick:()=>pin===ADMIN_PIN?setAdminUnlocked(true):showToast("❌ Contraseña incorrecta")},"Entrar")
+  if(!adminOk)return React.createElement("div",{className:"card",style:{maxWidth:320,margin:"36px auto"}},
+    React.createElement("div",{className:"ct"},"🔐 Admin"),
+    React.createElement("div",{className:"field"},React.createElement("label",null,"Contraseña"),
+      React.createElement("input",{type:"password",placeholder:"••••••••",value:pin,onChange:e=>setPin(e.target.value),
+        onKeyDown:e=>e.key==="Enter"&&(pin===PIN?setAdminOk(true):showToast("❌ Incorrecto"))})),
+    React.createElement("button",{className:"btn bo",onClick:()=>pin===PIN?setAdminOk(true):showToast("❌ Incorrecto")},"Entrar")
   );
 
-  const pending=data.participants.filter(p=>p.status==="pending");
-  const updateStatus=(id,status)=>{persist({...data,participants:data.participants.map(p=>p.id===id?{...p,status}:p)});showToast(status==="approved"?"✅ Aprobado":"❌ Rechazado");};
-
-  const setResult=(mid,side,val)=>{
-    const v=parseInt(val);
-    const cur=data.results[mid]||{};
-    const upd={...cur,[side]:val===""?undefined:v};
-    const clean={...data.results};
-    if(upd.home!==undefined&&upd.away!==undefined)clean[mid]=upd;
-    else{clean[mid]={...cur,[side]:undefined};if(clean[mid].home===undefined&&clean[mid].away===undefined)delete clean[mid];}
-    persist({...data,results:clean});
+  const pending=Object.values(data.participants||{}).filter(p=>p.status==="pending");
+  const updateStatus=async(id,status)=>{
+    await fbPatch(`participants/${id}`,{status});
+    setData(d=>({...d,participants:{...d.participants,[id]:{...d.participants[id],status}}}));
+    showToast(status==="approved"?"✅ Aprobado":"❌ Rechazado");
+  };
+  const toggleFase2=async()=>{
+    const next=!data.fase2;
+    await fbWrite("config",{fase2:next});
+    setData(d=>({...d,fase2:next}));
+    showToast(next?"🏆 ¡Fase 2 Abierta!":"⏸ Fase 2 cerrada");
   };
 
-  const toggleFase2=()=>{
-    const next=!data.fase2abierta;
-    persist({...data,fase2abierta:next});
-    showToast(next?"🏆 ¡Fase 2 Abierta! Los participantes ya pueden llenar eliminatorias":"⏸ Fase 2 cerrada");
-  };
-
-  const stages=[
-    {id:"group",label:"Grupos"},
-    {id:"r32",label:"Dieciséisavos"},
-    {id:"r16",label:"Octavos"},
-    {id:"qf",label:"Cuartos"},
-    {id:"sf",label:"Semis/Final"},
-  ];
-  const stageMatches={group:GROUP_MATCHES,r32:R32,r16:R16,qf:QF,sf:[...SF,TPLACE,FINAL]};
-  const todayM=stageMatches[rf]||[];
-  const groupedR={};
-  todayM.forEach(m=>{const k=rf==="group"?(m.group||"?"):(m.label?.split("·")[0]?.trim()||"?");if(!groupedR[k])groupedR[k]=[];groupedR[k].push(m);});
-
-  const playedGroup=GROUP_MATCHES.filter(m=>data.results[m.id]).length;
+  const stages=[{id:"group",label:"Grupos"},{id:"r32",label:"Dieciséisavos"},{id:"r16",label:"Octavos"},{id:"qf",label:"Cuartos"},{id:"sf",label:"Semis/Final"}];
+  const sm={group:GM,r32:R32,r16:R16,qf:QF,sf:[...SF,THIRD,FINAL]};
+  const tm=sm[rf]||[];
+  const gr={};
+  tm.forEach(m=>{const k=rf==="group"?(m.g||"?"):(m.label?.split("·")[0]?.trim()||"?");if(!gr[k])gr[k]=[];gr[k].push(m);});
+  const playedG=GM.filter(m=>data.results?.[m.id]).length;
 
   return React.createElement(React.Fragment,null,
     React.createElement("div",{className:"sh"},"🔧 Admin"),
     React.createElement("div",{className:"ms"},
-      [["Pendientes",pending.length],["Aprobados",data.participants.filter(p=>p.status==="approved").length],["Resultados",Object.keys(data.results).length]]
-        .map(([l,n])=>React.createElement("div",{className:"ms-c",key:l},
-          React.createElement("div",{className:"ms-n"},n),React.createElement("div",{className:"ms-l"},l)))
+      [["Pendientes",pending.length],["Aprobados",Object.values(data.participants||{}).filter(p=>p.status==="approved").length],["Resultados",Object.keys(data.results||{}).length]]
+        .map(([l,n])=>React.createElement("div",{className:"mc",key:l},React.createElement("div",{className:"mn"},n),React.createElement("div",{className:"ml"},l)))
     ),
-
     // FASE 2 CONTROL
-    React.createElement("div",{className:"card",style:{borderColor:data.fase2abierta?"var(--green)":"var(--border)"}},
-      React.createElement("div",{className:"ct",style:{color:data.fase2abierta?"var(--green)":"var(--orange)"}},"🏆 Control Fase Eliminatoria"),
-      React.createElement("div",{style:{fontSize:".76rem",color:"var(--muted)",marginBottom:12,lineHeight:1.7}},
-        React.createElement("strong",{style:{color:"#fff"}},"¿Cuándo activar?"),
-        " Cuando terminen todos los partidos de grupos (",React.createElement("strong",{style:{color:"var(--orange)"}},`${playedGroup}/72 jugados`),"). Al activar, los participantes podrán llenar sus predicciones de Dieciséisavos, Octavos, Cuartos, Semis y Final con los equipos reales. Los puntos se acumulan."
+    React.createElement("div",{className:"card",style:{borderColor:data.fase2?"var(--gn)":"var(--bd)"}},
+      React.createElement("div",{className:"ct",style:{color:data.fase2?"var(--gn)":"var(--or)"}},"🏆 Control Fase Eliminatoria"),
+      React.createElement("div",{style:{fontSize:".74rem",color:"var(--mu)",marginBottom:11,lineHeight:1.7}},
+        React.createElement("strong",{style:{color:"#fff"}},"Activa cuando terminen los 72 partidos de grupos"),
+        ` (actualmente ${playedG}/72 cargados). Al activar, los participantes pueden llenar eliminatorias con equipos reales.`
       ),
-      React.createElement("button",{
-        className:`btn ${data.fase2abierta?"btn-rej":"btn-green"}`,
-        onClick:toggleFase2},
-        data.fase2abierta?"⏸ Cerrar Fase Eliminatoria":"🏆 Abrir Fase Eliminatoria"
-      ),
-      data.fase2abierta&&React.createElement("span",{style:{marginLeft:10,fontSize:".72rem",color:"var(--green)"}},"✅ Activa — participantes pueden llenar eliminatorias")
+      React.createElement("button",{className:`btn ${data.fase2?"brej":"bgn"}`,onClick:toggleFase2},data.fase2?"⏸ Cerrar Fase 2":"🏆 Abrir Fase Eliminatoria"),
+      data.fase2&&React.createElement("span",{style:{marginLeft:10,fontSize:".7rem",color:"var(--gn)"}},"✅ Activa")
     ),
-
     React.createElement("div",{className:"sp"},
       [{id:"comandas",label:"📷 Comandas"},{id:"resultados",label:"📊 Resultados"}]
         .map(t=>React.createElement("button",{key:t.id,className:`pill ${at===t.id?"active":""}`,onClick:()=>setAt(t.id)},t.label))
     ),
-
     at==="comandas"&&React.createElement(React.Fragment,null,
-      pending.length===0
-        ?React.createElement("div",{className:"empty"},"✅ Sin comandas pendientes")
+      pending.length===0?React.createElement("div",{className:"empty"},"✅ Sin comandas pendientes")
         :pending.map(p=>React.createElement("div",{className:"cr",key:p.id},
           p.photo?React.createElement("img",{src:p.photo,alt:"c",className:"ci"})
-            :React.createElement("div",{style:{width:95,height:72,background:"#ffffff0c",borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)"}},"📷"),
+            :React.createElement("div",{style:{width:90,height:68,background:"#ffffff0c",borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--mu)"}},"📷"),
           React.createElement("div",null,
-            React.createElement("div",{style:{fontWeight:700,marginBottom:3}},p.name),
-            React.createElement("div",{style:{fontSize:".68rem",color:"var(--muted)",marginBottom:8}},`${p.phone} · ${p.city||"—"}`),
+            React.createElement("div",{style:{fontWeight:700,marginBottom:3,fontSize:".88rem"}},p.name),
+            React.createElement("div",{style:{fontSize:".66rem",color:"var(--mu)",marginBottom:7}},`${p.phone} · ${p.city||"—"}`),
             React.createElement("div",{style:{display:"flex",gap:6}},
-              React.createElement("button",{className:"btn btn-sm btn-app",onClick:()=>updateStatus(p.id,"approved")},"✅ Aprobar"),
-              React.createElement("button",{className:"btn btn-sm btn-rej",onClick:()=>updateStatus(p.id,"rejected")},"❌ Rechazar")
+              React.createElement("button",{className:"btn bsm bapp",onClick:()=>updateStatus(p.id,"approved")},"✅ Aprobar"),
+              React.createElement("button",{className:"btn bsm brej",onClick:()=>updateStatus(p.id,"rejected")},"❌ Rechazar")
             )
           )
         )),
-      data.participants.filter(p=>p.status!=="pending").length>0&&
+      Object.values(data.participants||{}).filter(p=>p.status!=="pending").length>0&&
         React.createElement(React.Fragment,null,
-          React.createElement("div",{className:"sh",style:{marginTop:16}},"Historial"),
-          data.participants.filter(p=>p.status!=="pending").map(p=>
-            React.createElement("div",{key:p.id,style:{padding:"8px 11px",background:"var(--card)",borderRadius:7,marginBottom:4,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:".78rem",border:"1px solid var(--border)"}},
-              React.createElement("div",null,React.createElement("span",{style:{fontWeight:700}},p.name),React.createElement("span",{style:{color:"var(--muted)",marginLeft:7,fontSize:".66rem"}},p.phone)),
-              React.createElement("span",{style:{fontSize:".64rem",fontWeight:700,padding:"2px 8px",borderRadius:50,background:p.status==="approved"?"#1db95420":"#e63b1f20",color:p.status==="approved"?"var(--green)":"#e63b1f"}},
+          React.createElement("div",{className:"sh",style:{marginTop:14}},"Historial"),
+          Object.values(data.participants||{}).filter(p=>p.status!=="pending").map(p=>
+            React.createElement("div",{key:p.id,style:{padding:"7px 11px",background:"var(--cd)",borderRadius:7,marginBottom:4,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:".78rem",border:"1px solid var(--bd)"}},
+              React.createElement("div",null,React.createElement("span",{style:{fontWeight:700}},p.name),React.createElement("span",{style:{color:"var(--mu)",marginLeft:6,fontSize:".64rem"}},p.phone)),
+              React.createElement("span",{style:{fontSize:".62rem",fontWeight:700,padding:"2px 7px",borderRadius:50,background:p.status==="approved"?"#1db95420":"#e63b1f20",color:p.status==="approved"?"var(--gn)":"var(--rd)"}},
                 p.status==="approved"?"✅ Aprobado":"❌ Rechazado")
             )
           )
         )
     ),
-
     at==="resultados"&&React.createElement(React.Fragment,null,
-      React.createElement("div",{className:"sp",style:{marginBottom:11}},
+      React.createElement("div",{style:{background:"#1db95412",border:"1px solid #1db95430",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:".72rem",color:"var(--gn)"}},"✏️ En modo admin puedes cargar resultados sin restricción de horario (para pruebas y resultados reales)."),
+      React.createElement("div",{className:"sp",style:{marginBottom:10}},
         stages.map(s=>React.createElement("button",{key:s.id,className:`pill ${rf===s.id?"active":""}`,onClick:()=>setRf(s.id)},s.label))
       ),
-      Object.entries(groupedR).map(([key,matches])=>
+      Object.entries(gr).map(([key,matches])=>
         React.createElement("div",{key},
-          React.createElement("div",{className:`mgt ${rf!=="group"?"fase2":""}`},rf==="group"?`Grupo ${key}`:key),
+          React.createElement("div",{className:`mgt ${rf!=="group"?"f2":""}`},rf==="group"?`Grupo ${key}`:key),
           matches.map(m=>{
-            const res=data.results[m.id]||{};
-            const hL=typeof m.home==="string"?m.home:resolveTeam(m.home,data.results,KO_MATCHES);
-            const aL=typeof m.away==="string"?m.away:resolveTeam(m.away,data.results,KO_MATCHES);
-            return React.createElement("div",{className:"rrow",key:m.id},
-              React.createElement("div",{style:{fontSize:".7rem",fontWeight:600,textAlign:"right"}},hL),
-              React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4}},
-                React.createElement("input",{className:"si-box",style:{width:36},type:"number",min:0,
-                  placeholder:"–",value:res.home??"",onChange:e=>setResult(m.id,"home",e.target.value)}),
-                React.createElement("span",{className:"ss"},"-"),
-                React.createElement("input",{className:"si-box",style:{width:36},type:"number",min:0,
-                  placeholder:"–",value:res.away??"",onChange:e=>setResult(m.id,"away",e.target.value)})
+            const res=data.results?.[m.id]||{};
+            const hL=typeof m.h==="string"?m.h:resolveTeam(m.h,data.results||{});
+            const aL=typeof m.a==="string"?m.a:resolveTeam(m.a,data.results||{});
+            return React.createElement("div",{className:"rv",key:m.id},
+              React.createElement("div",{style:{fontSize:".68rem",fontWeight:600,textAlign:"right",lineHeight:1.3}},hL),
+              React.createElement("div",{style:{display:"flex",alignItems:"center",gap:3}},
+                React.createElement("input",{className:"sib",style:{width:34},type:"number",min:0,placeholder:"–",value:res.home??"",onChange:e=>setResult(m.id,"home",e.target.value)}),
+                React.createElement("span",{className:"sv"},"-"),
+                React.createElement("input",{className:"sib",style:{width:34},type:"number",min:0,placeholder:"–",value:res.away??"",onChange:e=>setResult(m.id,"away",e.target.value)})
               ),
-              React.createElement("div",{style:{fontSize:".7rem",fontWeight:600}},aL)
+              React.createElement("div",{style:{fontSize:".68rem",fontWeight:600,lineHeight:1.3}},aL)
             );
           })
         )
@@ -915,56 +876,51 @@ function AdminView({data,persist,showToast,adminUnlocked,setAdminUnlocked}){
   );
 }
 
-// ─── INSTAGRAM ────────────────────────────────────────────────────
-function InstagramView({data}){
+// ─── INSTAGRAM ───────────────────────────────────────────────────
+function IGView({data}){
   const canvasRef=useRef();
   const[gen,setGen]=useState(null);
-
   const generate=()=>{
     const c=canvasRef.current,ctx=c.getContext("2d");
     c.width=1080;c.height=1080;
     ctx.fillStyle="#1a0b06";ctx.fillRect(0,0,1080,1080);
-    const g=ctx.createLinearGradient(0,0,1080,1080);
-    g.addColorStop(0,"#26120c");g.addColorStop(1,"#0d0604");
+    const g=ctx.createLinearGradient(0,0,1080,1080);g.addColorStop(0,"#26120c");g.addColorStop(1,"#0d0604");
     ctx.fillStyle=g;ctx.fillRect(0,0,1080,1080);
     ctx.fillStyle="#ff5b21";ctx.fillRect(0,0,1080,8);
-    ctx.fillStyle="#ff5b21";ctx.font="bold 50px Arial";ctx.textAlign="center";ctx.fillText("RICHIE TORTAS",540,76);
-    ctx.fillStyle="#ffffff99";ctx.font="27px Arial";ctx.fillText("🏆 RANKING QUINIELA MUNDIAL 2026",540,118);
-    const now=new Date().toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"});
-    ctx.fillStyle="#ff5b2188";ctx.font="21px Arial";ctx.fillText(now,540,155);
-    ctx.strokeStyle="#ff5b2140";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(80,172);ctx.lineTo(1000,172);ctx.stroke();
-
-    const ranked=calcRanking(data.participants,data.predictions,data.results).slice(0,10);
+    ctx.fillStyle="#ff5b21";ctx.font="bold 48px Arial";ctx.textAlign="center";ctx.fillText("RICHIE TORTAS",540,74);
+    ctx.fillStyle="#ffffff99";ctx.font="26px Arial";ctx.fillText("🏆 RANKING QUINIELA MUNDIAL 2026",540,116);
+    ctx.fillStyle="#ff5b2188";ctx.font="20px Arial";ctx.fillText(new Date().toLocaleDateString("es-VE",{day:"2-digit",month:"long",year:"numeric"}),540,152);
+    ctx.strokeStyle="#ff5b2140";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(80,168);ctx.lineTo(1000,168);ctx.stroke();
+    const parts=Object.values(data.participants||{}).filter(p=>p.status==="approved");
+    const ranked=parts.map(p=>{let pts=0;const pr=data.predictions?.[p.id]||{};ALL.forEach(m=>{const res=data.results?.[m.id],pred=pr[m.id];if(res&&pred)pts+=calcPts(pred,res);});return{...p,pts};}).sort((a,b)=>b.pts-a.pts).slice(0,10);
     const medals=["🥇","🥈","🥉"];
     ranked.forEach((p,i)=>{
-      const y=192+i*80;
+      const y=188+i*78;
       ctx.fillStyle=i===0?"#ff5b2112":"#ffffff05";
-      ctx.beginPath();if(ctx.roundRect)ctx.roundRect(58,y,964,68,7);else ctx.rect(58,y,964,68);ctx.fill();
-      ctx.font="30px Arial";ctx.textAlign="left";
-      if(i<3)ctx.fillText(medals[i],76,y+43);
-      else{ctx.fillStyle="#a07060";ctx.font="bold 23px Arial";ctx.fillText(`#${i+1}`,78,y+42);}
-      ctx.fillStyle="#f5f5f0";ctx.font="bold 26px Arial";ctx.textAlign="left";
-      ctx.fillText(p.name.toUpperCase().substring(0,30),138,y+42);
-      ctx.fillStyle="#ff5b21";ctx.font="bold 30px Arial";ctx.textAlign="right";
-      ctx.fillText(`${p.pts} pts`,1004,y+42);
-      if(p.f2pts>0){ctx.fillStyle="#ffffff40";ctx.font="18px Arial";ctx.textAlign="right";ctx.fillText(`(${p.f1pts}+${p.f2pts})`,1004,y+62);}
+      ctx.beginPath();if(ctx.roundRect)ctx.roundRect(58,y,964,66,7);else ctx.rect(58,y,964,66);ctx.fill();
+      ctx.font="28px Arial";ctx.textAlign="left";
+      if(i<3)ctx.fillText(medals[i],76,y+42);
+      else{ctx.fillStyle="#a07060";ctx.font="bold 22px Arial";ctx.fillText(`#${i+1}`,78,y+41);}
+      ctx.fillStyle="#f5f5f0";ctx.font="bold 25px Arial";ctx.textAlign="left";
+      ctx.fillText(p.name.toUpperCase().substring(0,30),136,y+41);
+      ctx.fillStyle="#ff5b21";ctx.font="bold 28px Arial";ctx.textAlign="right";
+      ctx.fillText(`${p.pts} pts`,1004,y+41);
     });
-    if(ranked.length===0){ctx.fillStyle="#a07060";ctx.font="24px Arial";ctx.textAlign="center";ctx.fillText("¡El ranking aparece aquí!",540,500);}
+    if(!ranked.length){ctx.fillStyle="#a07060";ctx.font="22px Arial";ctx.textAlign="center";ctx.fillText("¡El ranking aparece aquí!",540,500);}
     ctx.fillStyle="#ff5b21";ctx.fillRect(0,1072,1080,8);
-    ctx.fillStyle="#a07060";ctx.font="20px Arial";ctx.textAlign="center";
-    ctx.fillText("Compra en Richie Tortas · 4 al 11 de Junio · ¡Participa!",540,1048);
+    ctx.fillStyle="#a07060";ctx.font="19px Arial";ctx.textAlign="center";
+    ctx.fillText("Compra en Richie Tortas · 4 al 11 de Junio · Todos los horarios en hora Venezuela",540,1046);
     setGen(c.toDataURL("image/png"));
   };
-  const download=()=>{const a=document.createElement("a");a.href=gen;a.download=`ranking-richie-${new Date().toISOString().slice(0,10)}.png`;a.click();};
-
+  const dl=()=>{const a=document.createElement("a");a.href=gen;a.download=`ranking-richie-${new Date().toISOString().slice(0,10)}.png`;a.click();};
   return React.createElement(React.Fragment,null,
     React.createElement("div",{className:"sh"},"📸 Imagen para Instagram"),
     React.createElement("div",{className:"card"},
-      React.createElement("p",{style:{color:"var(--muted)",fontSize:".8rem",marginBottom:14,lineHeight:1.7}},"Genera una imagen 1080×1080 del ranking para Instagram. Los puntos muestran el desglose fase grupos + eliminatorias."),
-      React.createElement("button",{className:"btn btn-o",onClick:generate,style:{marginBottom:14}},"🎨 Generar Imagen"),
+      React.createElement("p",{style:{color:"var(--mu)",fontSize:".78rem",marginBottom:13,lineHeight:1.7}},"Genera una imagen 1080×1080 del ranking para Instagram."),
+      React.createElement("button",{className:"btn bo",onClick:generate,style:{marginBottom:13}},"🎨 Generar Imagen"),
       gen&&React.createElement("div",null,
-        React.createElement("img",{src:gen,alt:"ranking",style:{width:"100%",borderRadius:9,marginBottom:11,border:"1px solid var(--border)"}}),
-        React.createElement("button",{className:"btn btn-g",onClick:download},"⬇️ Descargar PNG")
+        React.createElement("img",{src:gen,alt:"ranking",style:{width:"100%",borderRadius:8,marginBottom:10,border:"1px solid var(--bd)"}}),
+        React.createElement("button",{className:"btn bg",onClick:dl},"⬇️ Descargar PNG")
       ),
       React.createElement("canvas",{ref:canvasRef,style:{display:"none"}})
     )
