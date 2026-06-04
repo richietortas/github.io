@@ -19,9 +19,10 @@ html,body{height:100%;font-family:'Poppins',sans-serif;background:#1a0b06}
 <script type="text/babel">
 const{useState,useEffect,useRef,useCallback}=React;
 const LS_FB="richie-fb-url";
+const FB_HARDCODED="https://quinielarichietortas-default-rtdb.firebaseio.com";
 
 // ─── FIREBASE REST (sin SDK) ─────────────────────────────────────
-function getDB(){return localStorage.getItem(LS_FB)||"";}
+function getDB(){return localStorage.getItem(LS_FB)||FB_HARDCODED;}
 async function fbRead(path){
   try{const r=await fetch(`${getDB()}/${path}.json`);const d=await r.json();return d||{};}catch(_){return{};}
 }
@@ -447,7 +448,7 @@ function App(){
     }
   },[data.results]);
 
-  if(!fbUrl)return React.createElement(SetupScreen,{onDone:()=>window.location.reload()});
+  if(!fbUrl&&!FB_HARDCODED)return React.createElement(SetupScreen,{onDone:()=>window.location.reload()});
   if(loading)return React.createElement("div",{style:{minHeight:"100vh",background:"var(--d3)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--or)",fontFamily:"'Paytone One',sans-serif",fontSize:"1.3rem",letterSpacing:2}},"⚽ CARGANDO...");
 
   const tabs=[
