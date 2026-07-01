@@ -448,6 +448,24 @@ function App(){
       setData(d=>({...d,results:{...d.results,[mid]:upd}}));
       await fbPatch(`results/${mid}`,upd);
     }
+  const setResult=useCallback(async(mid,side,val)=>{
+    const v=val===""?null:parseInt(val);
+    const cur=data.results[mid]||{};
+    const upd={...cur,[side]:v===null?null:v};
+    if(upd.home===null&&upd.away===null){
+      const nr={...data.results};delete nr[mid];
+      setData(d=>({...d,results:nr}));
+      await fbDelete(`results/${mid}`);
+    }else{
+      setData(d=>({...d,results:{...d.results,[mid]:upd}}));
+      await fbPatch(`results/${mid}`,upd);
+    }
+  },[data.results]);
+  const setPenalty=useCallback(async(mid,winner)=>{
+    const cur=data.results[mid]||{};
+    const upd={...cur,pw:winner};
+    setData(d=>({...d,results:{...d.results,[mid]:upd}}));
+    await fbPatch(`results/${mid}`,{pw:winner});
   },[data.results]);
 
   if(!fbUrl&&!FB_HARDCODED)return React.createElement(SetupScreen,{onDone:()=>window.location.reload()});
@@ -871,7 +889,20 @@ function AdminView({data,setData,showToast,setResult,adminOk,setAdminOk}){
                 React.createElement("input",{className:"sib",style:{width:34},type:"number",min:0,placeholder:"–",value:res.away??"",onChange:e=>setResult(m.id,"away",e.target.value)})
               ),
               React.createElement("div",{style:{fontSize:".68rem",fontWeight:600,lineHeight:1.3}},aL)
-            );
+            ),
+            rf!=="group"&&res.home!==undefined&&res.away!==undefined&&res.home===res.away&&
+              React.createElement("div",{style:{background:"#f5c51812",border:"1px solid #f5c51835",borderRadius:7,padding:"7px 10px",marginBottom:4,display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}},
+                React.createElement("span",{style:{fontSize:".63rem",fontWeight:700,color:"#f5c518"}},"🥅 Ganó en penaltis:"),
+                React.createElement("button",{className:"btn bsm",
+                  style:{background:res.pw==="home"?"#f5c518":"#ffffff15",color:res.pw==="home"?"#000":"#fff",fontSize:".63rem",padding:"4px 8px"},
+                  onClick:()=>setPenalty(m.id,res.pw==="home"?null:"home")},
+                  hL.slice(0,22)),
+                React.createElement("button",{className:"btn bsm",
+                  style:{background:res.pw==="away"?"#f5c518":"#ffffff15",color:res.pw==="away"?"#000":"#fff",fontSize:".63rem",padding:"4px 8px"},
+                  onClick:()=>setPenalty(m.id,res.pw==="away"?null:"away")},
+                  aL.slice(0,22))
+              )
+          );
           })
         )
       )
